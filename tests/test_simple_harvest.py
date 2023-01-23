@@ -14,14 +14,12 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     gauge,
-    voter,
-    rewardsContract,
     amount,
     sleep_time,
     is_slippery,
     no_profit,
     is_convex,
-    crv,
+    velo,
     accounts,
 ):
     ## deposit to the vault after approving
@@ -33,13 +31,7 @@ def test_simple_harvest(
     chain.mine(1)
 
     # this is part of our check into the staking contract balance
-    if is_convex:
-        stakingBeforeHarvest = rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest = strategy.stakedBalance()
-
-    # change our optimal deposit asset
-    strategy.setOptimal(0, {"from": gov})
+    stakingBeforeHarvest = strategy.stakedBalance()
 
     # harvest, store asset amount
     tx = strategy.harvest({"from": gov})
@@ -49,14 +41,12 @@ def test_simple_harvest(
     old_assets = vault.totalAssets()
     assert old_assets > 0
     assert token.balanceOf(strategy) == 0
+    print("gauge_deposit", gauge.balanceOf(strategy) / 1e18)
     assert strategy.estimatedTotalAssets() > 0
     print("Starting Assets: ", old_assets / 1e18)
 
     # try and include custom logic here to check that funds are in the staking contract (if needed)
-    if is_convex:
-        stakingBeforeHarvest < rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest < strategy.stakedBalance()
+    stakingBeforeHarvest < strategy.stakedBalance()
 
     # simulate profits
     chain.sleep(sleep_time)
@@ -67,6 +57,8 @@ def test_simple_harvest(
     tx = strategy.harvest({"from": gov})
     chain.sleep(1)
     new_assets = vault.totalAssets()
+    new_velo = velo.balanceOf(strategy)
+    print("new_velo: ", new_velo / 1e18)
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets
     print("\nAssets after 1 day: ", new_assets / 1e18)
@@ -85,10 +77,10 @@ def test_simple_harvest(
 
     # simulate some profits if we don't have any to make sure everything else works
     if no_profit:
-        crv_whale = accounts.at(
-            "0x32D03DB62e464c9168e41028FFa6E9a05D8C6451", force=True
+        velo_whale = accounts.at(
+            "0xb5a9621b0397bfc5b45896cae5998b6111bcdce6", force=True
         )
-        crv.transfer(strategy, 10_000e18, {"from": crv_whale})
+        velo.transfer(strategy, 10_000e18, {"from": velo_whale})
 
         # harvest, store new asset amount, turn off health check since we're donating a lot
         old_assets = vault.totalAssets()
@@ -156,10 +148,7 @@ def test_simple_harvest(
     assert token.balanceOf(strategy) == 0
 
     # try and include custom logic here to check that funds are in the staking contract (if needed)
-    if is_convex:
-        stakingBeforeHarvest < rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest < strategy.stakedBalance()
+    stakingBeforeHarvest < strategy.stakedBalance()
 
     # simulate profits
     chain.sleep(sleep_time)
@@ -194,10 +183,7 @@ def test_simple_harvest(
     assert strategy.estimatedTotalAssets() > 0
 
     # try and include custom logic here to check that funds are in the staking contract (if needed)
-    if is_convex:
-        stakingBeforeHarvest < rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest < strategy.stakedBalance()
+    stakingBeforeHarvest < strategy.stakedBalance()
 
     # simulate profits
     chain.sleep(sleep_time)

@@ -7,9 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-import "./interfaces/curve.sol";
 import "./interfaces/yearn.sol";
-import {IUniswapV2Router02} from "./interfaces/uniswap.sol";
 import {
     BaseStrategy,
     StrategyParams
@@ -19,44 +17,83 @@ interface IBaseFee {
     function isCurrentBaseFeeAcceptable() external view returns (bool);
 }
 
-interface IUniV3 {
-    struct ExactInputParams {
-        bytes path;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
+interface IVelodromeRouter {
+    function addLiquidity(
+        address,
+        address,
+        bool,
+        uint256,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        uint256
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
 
-    function exactInput(ExactInputParams calldata params)
-        external
-        payable
-        returns (uint256 amountOut);
+    // function swapExactTokensForTokens(
+    //     uint amountIn,
+    //     uint amountOutMin,
+    //     route[] calldata routes,
+    //     address to,
+    //     uint deadline
+    // ) external returns (uint[] memory amounts);
+
+    function swapExactTokensForTokensSimple(
+        uint amountIn,
+        uint amountOutMin,
+        address tokenFrom,
+        address tokenTo,
+        bool stable,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
 }
 
-abstract contract StrategyCurveBase is BaseStrategy {
+interface IGauge {
+    function deposit(
+        uint amount,
+        uint tokenId
+    ) external;
+
+    function claimFees() external returns (uint claimed0, uint claimed1);
+
+    function withdraw(
+        uint amount
+    ) external;
+
+    function derivedBalance(
+        address account
+    ) external view returns (uint);
+
+    function getReward(
+        address account,
+        address[] memory tokens
+    ) external;
+
+
+}
+
+interface IPool {
+    function getReserves() external view returns (uint _reserve0, uint _reserve1, uint _blockTimestampLast);
+}
+
+abstract contract StrategyVeloBase is BaseStrategy {
     using Address for address;
 
     /* ========== STATE VARIABLES ========== */
     // these should stay the same across different wants.
 
-    // curve infrastructure contracts
-    ICurveStrategyProxy public proxy; // Below we set it to Yearn's Updated v4 StrategyProxy
-    address public gauge; // Curve gauge contract, most are tokenized, held by Yearn's voter
+    // infrastructure contracts
+    address public gauge; // gauge address
+    address public other; // other token in the pool address
+    // address public healthCheck; // healthcheck address ALREADY IN BASE STRATEGY
 
-    // keepCRV stuff
-    uint256 public keepCRV; // the percentage of CRV we re-lock for boost (in basis points)
-    address public constant voter = 0xF147b8125d2ef93FB6965Db97D6746952a133934; // Yearn's veCRV voter
-    uint256 internal constant FEE_DENOMINATOR = 10000; // this means all of our fee values are in basis points
-
-    // Swap stuff
-    address internal constant sushiswap =
-        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // we use this to sell our bonus token
-
-    IERC20 internal constant crv =
-        IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
-    IERC20 internal constant weth =
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    // swap stuff
+    address internal constant velodromeRouter =
+        0xa132DAB612dB5cB9fC9Ac426A0Cc215A3423F9c9;
+    IERC20 internal constant velo =
+        IERC20(0x3c8B650257cFb5f272f799F5e2b4e65093a11a05);
+    //address[] public veloTokenPath; // path to sell VELO ARE THESE CORRECT???
 
     uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
@@ -73,9 +110,9 @@ abstract contract StrategyCurveBase is BaseStrategy {
         return stratName;
     }
 
-    ///@notice How much want we have staked in Curve's gauge
+    ///@notice How much want we have staked in Velodrome's gauge
     function stakedBalance() public view returns (uint256) {
-        return proxy.balanceOf(gauge);
+        return IGauge(gauge).derivedBalance(address(this));
     }
 
     ///@notice Balance of want sitting in our strategy
@@ -96,8 +133,7 @@ abstract contract StrategyCurveBase is BaseStrategy {
         // Send all of our LP tokens to the proxy and deposit to the gauge if we have any
         uint256 _toInvest = balanceOfWant();
         if (_toInvest > 0) {
-            want.safeTransfer(address(proxy), _toInvest);
-            proxy.deposit(gauge, address(want));
+            IGauge(gauge).deposit(_toInvest, 0); // tokenId - IS 0 ALWAYS CORRECT ???
         }
     }
 
@@ -111,11 +147,7 @@ abstract contract StrategyCurveBase is BaseStrategy {
             // check if we have enough free funds to cover the withdrawal
             uint256 _stakedBal = stakedBalance();
             if (_stakedBal > 0) {
-                proxy.withdraw(
-                    gauge,
-                    address(want),
-                    Math.min(_stakedBal, _amountNeeded.sub(_wantBal))
-                );
+                IGauge(gauge).withdraw(Math.min(_stakedBal, _amountNeeded.sub(_wantBal)));
             }
             uint256 _withdrawnBal = balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
@@ -131,7 +163,7 @@ abstract contract StrategyCurveBase is BaseStrategy {
         uint256 _stakedBal = stakedBalance();
         if (_stakedBal > 0) {
             // don't bother withdrawing zero
-            proxy.withdraw(gauge, address(want), _stakedBal);
+            IGauge(gauge).withdraw(_stakedBal);
         }
         return balanceOfWant();
     }
@@ -147,17 +179,6 @@ abstract contract StrategyCurveBase is BaseStrategy {
 
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
 
-    // Use to update Yearn's StrategyProxy contract as needed in case of upgrades.
-    function setProxy(address _proxy) external onlyGovernance {
-        proxy = ICurveStrategyProxy(_proxy);
-    }
-
-    // Set the amount of CRV to be locked in Yearn's veCRV voter from each harvest. Default is 10%.
-    function setKeepCRV(uint256 _keepCRV) external onlyVaultManagers {
-        require(_keepCRV <= 10_000);
-        keepCRV = _keepCRV;
-    }
-
     // This allows us to manually harvest with our keeper as needed
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce)
         external
@@ -167,34 +188,21 @@ abstract contract StrategyCurveBase is BaseStrategy {
     }
 }
 
-contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
+contract StrategyVeloUsdcClonable is StrategyVeloBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
-    // Curve stuff
-    address public curve; ///@notice This is our curve pool specific to this vault
-    ICurveFi internal constant zapContract =
-        ICurveFi(0xA79828DF1850E8a3A3064576f380D90aECDD3359); // this is used for depositing to all 3Crv metapools
+    // Velodrome stuff
+    address public pool; // This is our velodrome pool specific to this vault
 
-    ICurveFi internal constant crveth =
-        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
+    address[] public onlyVelo;
 
-    // we use these to deposit to our curve pool
-    address public targetStable; ///@notice This is the stablecoin we are using to take profits and deposit into 3Crv.
-    address internal constant uniswapv3 =
-        0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    IERC20 internal constant usdt =
-        IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
+    IVelodromeRouter internal constant velousdc =
+        IVelodromeRouter(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // velodrome pool to sell our velo for usdc
+
+    // we use these to deposit to our velodrome pool
     IERC20 internal constant usdc =
-        IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    IERC20 internal constant dai =
-        IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
-
-    // rewards token info. we can have more than 1 reward token but this is rare, so we don't include this in the template
-    IERC20 public rewardsToken;
-    bool public hasRewards;
-    address[] internal rewardsPath;
+        IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
 
     // check for cloning
     bool internal isOriginal = true;
@@ -204,10 +212,12 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
     constructor(
         address _vault,
         address _gauge,
-        address _curvePool,
+        address _veloPool,
+        address _otherToken,
+        address _healthCheck,
         string memory _name
-    ) public StrategyCurveBase(_vault) {
-        _initializeStrat(_gauge, _curvePool, _name);
+    ) public StrategyVeloBase(_vault) {
+        _initializeStrat(_gauge, _veloPool, _otherToken, _healthCheck, _name);
     }
 
     /* ========== CLONING ========== */
@@ -215,16 +225,22 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneCurve3CrvRewards(
+    function cloneCurveUsdcRewards(
         address _vault,
         address _strategist,
         address _rewards,
         address _keeper,
         address _gauge,
-        address _curvePool,
+        address _veloPool,
+        address _otherToken,
+        address _healthCheck,
         string memory _name
     ) external returns (address newStrategy) {
-        require(isOriginal);
+        // don't clone a clone
+        if (!isOriginal) {
+            revert();
+        }
+
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
         bytes20 addressBytes = bytes20(address(this));
         assembly {
@@ -242,13 +258,15 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyCurve3CrvRewardsClonable(newStrategy).initialize(
+        StrategyVeloUsdcClonable(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
             _keeper,
             _gauge,
-            _curvePool,
+            _veloPool,
+            _otherToken,
+            _healthCheck,
             _name
         );
 
@@ -262,56 +280,54 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
         address _rewards,
         address _keeper,
         address _gauge,
-        address _curvePool,
+        address _veloPool,
+        address _otherToken,
+        address _healthCheck,
         string memory _name
     ) public {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_gauge, _curvePool, _name);
+        _initializeStrat(_gauge, _veloPool, _otherToken, _healthCheck, _name);
     }
 
     // this is called by our original strategy, as well as any clones
     function _initializeStrat(
         address _gauge,
-        address _curvePool,
+        address _veloPool,
+        address _otherToken,
+        address _healthCheck,
         string memory _name
     ) internal {
         // make sure that we haven't initialized this before
-        require(address(curve) == address(0)); // already initialized.
+        require(address(pool) == address(0)); // already initialized.
 
         // You can set these parameters on deployment to whatever you want
-        maxReportDelay = 100 days; // 100 days in seconds
-        minReportDelay = 21 days; // 21 days in seconds
-        healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012; // health.ychad.eth
-        creditThreshold = 1e6 * 1e18;
-        keepCRV = 1000; // default of 10%
+        maxReportDelay = 28 days; // 28 days in seconds
+        minReportDelay = 7 days; // 7 days in seconds
+        creditThreshold = 0.005 * 1e18; // $10,000 because gas is cheap
 
-        // these are our standard approvals. want = Curve LP token
-        want.approve(address(proxy), type(uint256).max);
-        crv.approve(address(crveth), type(uint256).max);
-        weth.approve(uniswapv3, type(uint256).max);
-
-        // this is the pool specific to this vault, but we only use it as an address
-        curve = address(_curvePool);
-
-        // need to set our proxy when cloning since it's not a constant
-        proxy = ICurveStrategyProxy(0xA420A63BbEFfbda3B147d0585F1852C358e2C152);
-
-        // set our curve gauge contract
+        // set our velodrome gauge contract
         gauge = address(_gauge);
+        
+        // this is the pool specific to this vault, but we only use it as an address
+        pool = address(_veloPool);
+
+        // set the other (non-USDC) token in our pool
+        other = address(_otherToken);
+
+        healthCheck = address(_healthCheck);
 
         // set our strategy's name
         stratName = _name;
 
+        // these are our standard approvals. want = Velodrome pool token
+        want.approve(address(gauge), type(uint256).max);
+        velo.approve(address(velousdc), type(uint256).max);
+
         // these are our approvals and path specific to this contract
-        dai.approve(address(zapContract), type(uint256).max);
-        usdt.safeApprove(address(zapContract), type(uint256).max); // USDT requires safeApprove(), funky token
-        usdc.approve(address(zapContract), type(uint256).max);
+        usdc.approve(address(velodromeRouter), type(uint256).max);
+        velo.approve(address(velodromeRouter), type(uint256).max);
 
-        // start with usdt
-        targetStable = address(usdt);
-
-        // set our uniswap pool fees
-        uniStableFee = 500;
+        onlyVelo.push(address(velo));
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -325,69 +341,72 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
             uint256 _debtPayment
         )
     {
-        // if we have anything in the gauge, then harvest CRV from the gauge
         uint256 _stakedBal = stakedBalance();
-        uint256 _crvBalance = crv.balanceOf(address(this));
+        uint256 _veloBalance = velo.balanceOf(address(this));
+        // if we have anything in the gauge, then harvest VELO from the gauge
         if (_stakedBal > 0) {
-            proxy.harvest(gauge);
-            _crvBalance = crv.balanceOf(address(this));
-            // if we claimed any CRV, then sell it
-            if (_crvBalance > 0) {
-                // keep some of our CRV to increase our boost
-                uint256 _sendToVoter =
-                    _crvBalance.mul(keepCRV).div(FEE_DENOMINATOR);
-                if (_sendToVoter > 0) {
-                    crv.safeTransfer(voter, _sendToVoter);
-                }
-                _crvBalance -= _sendToVoter;
-            }
+            // claim our velo
+            //address[] memory onlyVelo = new address[](1);
+            //onlyVelo[0] = address(velo);
+            IGauge(gauge).getReward(address(this), onlyVelo);
+            _veloBalance = velo.balanceOf(address(this));
         }
-
-        if (hasRewards) {
-            proxy.claimRewards(gauge, address(rewardsToken));
-            uint256 _rewardsBalance = rewardsToken.balanceOf(address(this));
-            if (_rewardsBalance > 0) {
-                _sellRewards(_rewardsBalance);
-            }
-        }
-
-        // do this even if we don't have any CRV, in case we have WETH
-        _sell(_crvBalance);
+        // if we have any VELO, then sell it for USDC
+        if (_veloBalance > 0) {
+            _sell(_veloBalance);
+        }        
 
         // check for balances of tokens to deposit
-        uint256 _daiBalance = dai.balanceOf(address(this));
         uint256 _usdcBalance = usdc.balanceOf(address(this));
-        uint256 _usdtBalance = usdt.balanceOf(address(this));
+        uint256 _otherBalance = IERC20(other).balanceOf(address(this));
 
-        // deposit our balance to Curve if we have any
-        if (_daiBalance > 0 || _usdcBalance > 0 || _usdtBalance > 0) {
-            zapContract.add_liquidity(
-                curve,
-                [0, _daiBalance, _usdcBalance, _usdtBalance],
-                0
+        // deposit our USDC balance to Velodrome, if we have any
+        if (_usdcBalance > 0) {
+            uint256 usdcB = usdc.balanceOf(pool);
+            uint256 otherB = IERC20(other).balanceOf(pool);
+
+            uint256 otherWeNeed = _usdcBalance.mul(otherB).div(usdcB.add(otherB));
+
+            if (otherWeNeed > 1e18) {
+                // swap usdc for other
+                _sellusdc(otherWeNeed);
+            }
+
+            uint256 _usdcBalance = usdc.balanceOf(address(this));
+            uint256 _otherBalance = IERC20(other).balanceOf(address(this));
+           
+            if (_otherBalance > 0 && _usdcBalance > 0) {
+                // deposit into lp
+                IVelodromeRouter(velodromeRouter).addLiquidity(
+                address(usdc), // tokenA
+                address(other), // tokenB
+                true, // stable
+                _usdcBalance, // amountADesired
+                _otherBalance, // amountBDesired
+                0, // amountAMin
+                0, // amountBMin
+                address(this), // to
+                block.timestamp // deadline
             );
+            }
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
         if (_debtOutstanding > 0) {
+            // don't bother withdrawing if we don't have staked funds
             if (_stakedBal > 0) {
-                // don't bother withdrawing if we don't have staked funds
-                proxy.withdraw(
-                    gauge,
-                    address(want),
-                    Math.min(_stakedBal, _debtOutstanding)
-                );
+                IGauge(gauge).withdraw(Math.min(_stakedBal, _debtOutstanding));
             }
             uint256 _withdrawnBal = balanceOfWant();
             _debtPayment = Math.min(_debtOutstanding, _withdrawnBal);
         }
 
-        // serious loss should never happen, but if it does (for instance, if Curve is hacked), let's record it accurately
+        // serious loss should never happen, but if it does (for instance, if Velodrome is hacked), let's record it accurately
         uint256 assets = estimatedTotalAssets();
         uint256 debt = vault.strategies(address(this)).totalDebt;
 
         // if assets are greater than debt, things are working great!
-        if (assets > debt) {
+        if (assets >= debt) {
             _profit = assets.sub(debt);
             uint256 _wantBal = balanceOfWant();
             if (_profit.add(_debtPayment) > _wantBal) {
@@ -407,46 +426,39 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
     function prepareMigration(address _newStrategy) internal override {
         uint256 _stakedBal = stakedBalance();
         if (_stakedBal > 0) {
-            proxy.withdraw(gauge, address(want), _stakedBal);
+            IGauge(gauge).withdraw(_stakedBal);
         }
-        crv.safeTransfer(_newStrategy, crv.balanceOf(address(this)));
+        velo.safeTransfer(_newStrategy, velo.balanceOf(address(this)));
     }
 
-    // Sells our harvested CRV into the selected output, then WETH -> stables together with any WETH from rewards on UniV3
-    function _sell(uint256 _crvAmount) internal {
-        if (_crvAmount > 1e17) {
-            // don't want to swap dust or we might revert
-            crveth.exchange(1, 0, _crvAmount, 0, false);
-        }
-
-        uint256 _wethBalance = weth.balanceOf(address(this));
-        if (_wethBalance > 1e15) {
-            // don't want to swap dust or we might revert
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(weth),
-                        uint24(uniStableFee),
-                        address(targetStable)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _wethBalance,
-                    uint256(1)
-                )
+    // Sells our harvested VELO into the selected output (USDC)
+    function _sell(uint256 _veloAmount) internal {      
+        if (_veloAmount > 1e17) {
+            IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
+                _veloAmount, // amountIn
+                0, // amountOutMin
+                address(velo), // tokenFrom
+                address(usdc), // tokenTo
+                false, // stable
+                address(this), // to
+                block.timestamp // deadline
             );
         }
     }
 
-    // Sells our harvested reward token into the selected output.
-    function _sellRewards(uint256 _amount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _amount,
-            uint256(0),
-            rewardsPath,
-            address(this),
-            block.timestamp
-        );
+    // Sells USDC for OTHER
+    function _sellusdc(uint256 _usdcAmount) internal {      
+        if (_usdcAmount > 1e17) {
+            IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
+                _usdcAmount, // amountIn
+                0, // amountOutMin
+                address(usdc), // tokenFrom
+                address(other), // tokenTo
+                true, // stable
+                address(this), // to
+                block.timestamp // deadline
+            );
+        }
     }
 
     /* ========== KEEP3RS ========== */
@@ -503,7 +515,7 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
     // check if the current baseFee is below our external target
     function isBaseFeeAcceptable() internal view returns (bool) {
         return
-            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
+            IBaseFee(0xbf4A735F123A9666574Ff32158ce2F7b7027De9A)
                 .isCurrentBaseFeeAcceptable();
     }
 
@@ -511,50 +523,11 @@ contract StrategyCurve3CrvRewardsClonable is StrategyCurveBase {
 
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
 
-    ///@notice Set optimal token to sell harvested funds for depositing to Curve.
-    function setOptimal(uint256 _optimal) external onlyVaultManagers {
-        if (_optimal == 0) {
-            targetStable = address(dai);
-        } else if (_optimal == 1) {
-            targetStable = address(usdc);
-        } else if (_optimal == 2) {
-            targetStable = address(usdt);
-        } else {
-            revert("incorrect token");
-        }
-    }
-
-    ///@notice Use to add, update or remove reward token
-    function updateRewards(bool _hasRewards, address _rewardsToken)
-        external
-        onlyGovernance
-    {
-        // if we already have a rewards token, get rid of it
-        if (address(rewardsToken) != address(0)) {
-            rewardsToken.approve(sushiswap, uint256(0));
-        }
-        if (_hasRewards == false) {
-            hasRewards = false;
-            rewardsToken = IERC20(address(0));
-        } else {
-            // approve, setup our path, and turn on rewards
-            rewardsToken = IERC20(_rewardsToken);
-            rewardsToken.approve(sushiswap, type(uint256).max);
-            rewardsPath = [address(rewardsToken), address(weth)];
-            hasRewards = true;
-        }
-    }
-
     ///@notice Credit threshold is in want token, and will trigger a harvest if strategy credit is above this amount.
     function setCreditThreshold(uint256 _creditThreshold)
         external
         onlyVaultManagers
     {
         creditThreshold = _creditThreshold;
-    }
-
-    ///@notice Set the fee pool we'd like to swap through on UniV3 (1% = 10_000)
-    function setUniFees(uint24 _stableFee) external onlyVaultManagers {
-        uniStableFee = _stableFee;
     }
 }
