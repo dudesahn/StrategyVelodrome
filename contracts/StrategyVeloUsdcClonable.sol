@@ -30,14 +30,6 @@ interface IVelodromeRouter {
         uint256
     ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
 
-    // function swapExactTokensForTokens(
-    //     uint amountIn,
-    //     uint amountOutMin,
-    //     route[] calldata routes,
-    //     address to,
-    //     uint deadline
-    // ) external returns (uint[] memory amounts);
-
     function swapExactTokensForTokensSimple(
         uint amountIn,
         uint amountOutMin,
@@ -55,8 +47,6 @@ interface IGauge {
         uint tokenId
     ) external;
 
-    function claimFees() external returns (uint claimed0, uint claimed1);
-
     function withdraw(
         uint amount
     ) external;
@@ -73,27 +63,23 @@ interface IGauge {
 
 }
 
-interface IPool {
-    function getReserves() external view returns (uint _reserve0, uint _reserve1, uint _blockTimestampLast);
-}
-
 abstract contract StrategyVeloBase is BaseStrategy {
     using Address for address;
 
     /* ========== STATE VARIABLES ========== */
     // these should stay the same across different wants.
 
-    // infrastructure contracts
+    // Velodrome stuff
+    address public pool; // This is our velodrome pool specific to this vault
     address public gauge; // gauge address
-    address public other; // other token in the pool address
-    // address public healthCheck; // healthcheck address ALREADY IN BASE STRATEGY
 
     // swap stuff
     address internal constant velodromeRouter =
         0xa132DAB612dB5cB9fC9Ac426A0Cc215A3423F9c9;
     IERC20 internal constant velo =
         IERC20(0x3c8B650257cFb5f272f799F5e2b4e65093a11a05);
-    //address[] public veloTokenPath; // path to sell VELO ARE THESE CORRECT???
+
+    address[] public onlyVelo;
 
     uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
@@ -130,10 +116,10 @@ abstract contract StrategyVeloBase is BaseStrategy {
         if (emergencyExit) {
             return;
         }
-        // Send all of our LP tokens to the proxy and deposit to the gauge if we have any
+        // Deposit all of our LP tokens in the gauge, if we have any
         uint256 _toInvest = balanceOfWant();
         if (_toInvest > 0) {
-            IGauge(gauge).deposit(_toInvest, 0); // tokenId - IS 0 ALWAYS CORRECT ???
+            IGauge(gauge).deposit(_toInvest, 0); // tokenId = 0 //STILL CONFUSED ABOUT THE TOKENID BIT//
         }
     }
 
@@ -192,11 +178,8 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
-    // Velodrome stuff
-    address public pool; // This is our velodrome pool specific to this vault
-
-    address[] public onlyVelo;
-
+    address public other; // address of the other (non-usdc) token in the stable pool
+    
     IVelodromeRouter internal constant velousdc =
         IVelodromeRouter(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // velodrome pool to sell our velo for usdc
 
@@ -225,7 +208,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneCurveUsdcRewards(
+    function cloneVeloUsdc(
         address _vault,
         address _strategist,
         address _rewards,
@@ -326,6 +309,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         // these are our approvals and path specific to this contract
         usdc.approve(address(velodromeRouter), type(uint256).max);
         velo.approve(address(velodromeRouter), type(uint256).max);
+        IERC20(other).approve(address(velodromeRouter), type(uint256).max);
 
         onlyVelo.push(address(velo));
     }
@@ -346,8 +330,6 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         // if we have anything in the gauge, then harvest VELO from the gauge
         if (_stakedBal > 0) {
             // claim our velo
-            //address[] memory onlyVelo = new address[](1);
-            //onlyVelo[0] = address(velo);
             IGauge(gauge).getReward(address(this), onlyVelo);
             _veloBalance = velo.balanceOf(address(this));
         }
@@ -362,12 +344,14 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         // deposit our USDC balance to Velodrome, if we have any
         if (_usdcBalance > 0) {
+
             uint256 usdcB = usdc.balanceOf(pool);
             uint256 otherB = IERC20(other).balanceOf(pool);
 
-            uint256 otherWeNeed = _usdcBalance.mul(otherB).div(usdcB.add(otherB));
+            // usdc has 6 decimals whereas "other" probably has 18 decimals
+            uint256 otherWeNeed = _usdcBalance.mul(otherB / 1e12).div(usdcB.add(otherB / 1e12));
 
-            if (otherWeNeed > 1e18) {
+            if (otherWeNeed > 10e6) {
                 // swap usdc for other
                 _sellusdc(otherWeNeed);
             }
@@ -431,7 +415,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         velo.safeTransfer(_newStrategy, velo.balanceOf(address(this)));
     }
 
-    // Sells our harvested VELO into the selected output (USDC)
+    // Sells VELO for USDC
     function _sell(uint256 _veloAmount) internal {      
         if (_veloAmount > 1e17) {
             IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
@@ -448,17 +432,15 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
     // Sells USDC for OTHER
     function _sellusdc(uint256 _usdcAmount) internal {      
-        if (_usdcAmount > 1e17) {
-            IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
-                _usdcAmount, // amountIn
-                0, // amountOutMin
-                address(usdc), // tokenFrom
-                address(other), // tokenTo
-                true, // stable
-                address(this), // to
-                block.timestamp // deadline
-            );
-        }
+        IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
+            _usdcAmount, // amountIn
+            0, // amountOutMin
+            address(usdc), // tokenFrom
+            address(other), // tokenTo
+            true, // stable
+            address(this), // to
+            block.timestamp // deadline
+        );
     }
 
     /* ========== KEEP3RS ========== */

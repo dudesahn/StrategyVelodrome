@@ -116,13 +116,13 @@ def test_emergency_exit_with_loss(
     strategy,
     chain,
     gauge,
-    voter,
-    cvxDeposit,
+    #voter,
+    #cvxDeposit,
     amount,
     is_slippery,
     no_profit,
-    booster,
-    pid,
+    #booster,
+    #pid,
     is_convex,
     gauge_is_not_tokenized,
 ):
@@ -138,17 +138,17 @@ def test_emergency_exit_with_loss(
     if is_convex:
         # send away all funds, will need to alter this based on strategy
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
     else:
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send)
-        gauge.transfer(gov, to_send, {"from": voter})
+        gauge.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
 
     # our whale donates 1 wei to the vault so we don't divide by zero (0.3.2 vault, errors in vault._reportLoss)
@@ -186,13 +186,13 @@ def test_emergency_exit_with_no_loss(
     strategy,
     chain,
     gauge,
-    voter,
-    cvxDeposit,
+    #voter,
+    #cvxDeposit,
     amount,
     is_slippery,
     no_profit,
-    booster,
-    pid,
+    #booster,
+    #pid,
     is_convex,
     gauge_is_not_tokenized,
 ):
@@ -209,22 +209,22 @@ def test_emergency_exit_with_no_loss(
     if is_convex:
         # send away all funds, will need to alter this based on strategy
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
 
         # gov unwraps and sends it back, glad someone was watching!
-        booster.withdrawAll(pid, {"from": gov})
+        #booster.withdrawAll(pid, {"from": gov})
         token.transfer(strategy, to_send, {"from": gov})
         assert strategy.estimatedTotalAssets() > 0
     else:
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
+        gauge.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
 
         # gov unwraps and sends it back, glad someone was watching!
@@ -270,8 +270,8 @@ def test_emergency_withdraw_method_0(
     strategy,
     chain,
     strategist_ms,
-    rewardsContract,
-    cvxDeposit,
+    #rewardsContract,
+    #cvxDeposit,
     amount,
     sleep_time,
     is_convex,
@@ -308,12 +308,12 @@ def test_emergency_withdraw_method_0(
     strategy.harvest({"from": gov})
     chain.sleep(1)
     assert strategy.estimatedTotalAssets() == 0
-    assert rewardsContract.balanceOf(strategy) == 0
-    assert cvxDeposit.balanceOf(strategy) > 0
+    #assert rewardsContract.balanceOf(strategy) == 0
+    #assert cvxDeposit.balanceOf(strategy) > 0
 
     # sweep this from the strategy with gov and wait until we can figure out how to unwrap them
     strategy.sweep(cvxDeposit, {"from": gov})
-    assert cvxDeposit.balanceOf(gov) > 0
+    #assert cvxDeposit.balanceOf(gov) > 0
 
 
 def test_emergency_withdraw_method_1(
@@ -325,8 +325,8 @@ def test_emergency_withdraw_method_1(
     strategy,
     chain,
     strategist_ms,
-    rewardsContract,
-    cvxDeposit,
+    #rewardsContract,
+    #cvxDeposit,
     amount,
     sleep_time,
     is_convex,
@@ -361,8 +361,8 @@ def test_emergency_withdraw_method_1(
     chain.sleep(1)
     strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() == 0
-    assert rewardsContract.balanceOf(strategy) == 0
-    assert cvxDeposit.balanceOf(strategy) > 0
+    #assert rewardsContract.balanceOf(strategy) == 0
+    #assert cvxDeposit.balanceOf(strategy) > 0
 
     strategy.sweep(cvxDeposit, {"from": gov})
-    assert cvxDeposit.balanceOf(gov) > 0
+    #assert cvxDeposit.balanceOf(gov) > 0

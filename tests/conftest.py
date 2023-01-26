@@ -336,9 +336,9 @@ if chain_used == 1:  # mainnet
 
 elif chain_used == 10:  # optimism
 
-    @pytest.fixture(scope="session")
-    def voter():
-        yield Contract("0xF147b8125d2ef93FB6965Db97D6746952a133934")
+    # @pytest.fixture(scope="session")
+    # def voter():
+    #     yield Contract("0xF147b8125d2ef93FB6965Db97D6746952a133934")
 
     @pytest.fixture(scope="session")
     def velo():
@@ -346,7 +346,7 @@ elif chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def other_vault_strategy():
-        yield Contract("0x8423590CD0343c4E18d35aA780DF50a5751bebae")
+        yield Contract("0xf8aD69d578bd58c7d3Ff643A22355f0BFd5cA12A")
 
     @pytest.fixture(scope="session")
     def curve_registry():
@@ -361,8 +361,9 @@ elif chain_used == 10:  # optimism
         # this is the token that we are farming and selling for more of our want.
         yield Contract("0x3c8B650257cFb5f272f799F5e2b4e65093a11a05")
 
+    # our velodrome lp token
     @pytest.fixture(scope="session")	
-    def token():	
+    def token():
         yield Contract("0xd16232ad60188B68076a235c65d692090caba155")
 
     # gauge for the velodrome pool token
@@ -410,6 +411,10 @@ elif chain_used == 10:  # optimism
     def strategist_ms(accounts):
         # like governance, but better
         yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
+
+    @pytest.fixture(scope="session")
+    def oracle_gov(accounts):
+        yield accounts.at("0xc6387e937bcef8de3334f80edc623275d42457ff", force=True)
 
     @pytest.fixture(scope="session")
     def keeper(accounts):
@@ -468,6 +473,7 @@ elif chain_used == 10:  # optimism
         has_rewards,
         vault_address,
         try_blocks,
+        oracle_gov
     ):
         if is_convex:
             # make sure to include all constructor parameters needed here
@@ -585,7 +591,7 @@ elif chain_used == 10:  # optimism
             #proxy.approveStrategy(strategy.gauge(), strategy, {"from": gov})
 
         # make all harvests permissive unless we change the value lower
-        #gasOracle.setMaxAcceptableBaseFee(2000 * 1e9, {"from": strategist_ms})
+        gasOracle.setMaxAcceptableBaseFee(2000 * 1e9, {"from": oracle_gov})
         strategy.setHealthCheck(healthCheck, {"from": gov})
 
         # add rewards token if needed. Double-check if we specify router here (sBTC new and old clonable only)

@@ -13,23 +13,24 @@ def test_odds_and_ends(
     strategy,
     chain,
     strategist_ms,
-    voter,
     gauge,
     contract_name,
-    cvxDeposit,
-    rewardsContract,
-    pid,
-    crv,
-    convexToken,
+    # cvxDeposit,
+    # rewardsContract,
+    # pid,
+    velo,
+    # convexToken,
     amount,
     pool,
-    proxy,
+    # proxy,
     strategy_name,
     rewards_token,
     is_convex,
     has_rewards,
     sleep_time,
     gauge_is_not_tokenized,
+    other,
+    healthCheck
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -46,13 +47,13 @@ def test_odds_and_ends(
         # set claim rewards to true and send away CRV and CVX so we don't have dust leftover, this is a problem with uni v3
         strategy.setClaimRewards(True, {"from": gov})
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
-        to_send = crv.balanceOf(strategy)
-        crv.transfer(gov, to_send, {"from": strategy})
-        to_send = convexToken.balanceOf(strategy)
-        convexToken.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        to_send = velo.balanceOf(strategy)
+        velo.transfer(gov, to_send, {"from": strategy})
+        # to_send = convexToken.balanceOf(strategy)
+        # convexToken.transfer(gov, to_send, {"from": strategy})
         if has_rewards:
             to_send = rewards_token.balanceOf(strategy)
             rewards_token.transfer(gov, to_send, {"from": strategy})
@@ -61,11 +62,11 @@ def test_odds_and_ends(
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
-        to_send = crv.balanceOf(strategy)
-        crv.transfer(gov, to_send, {"from": strategy})
+        gauge.transfer(gov, to_send, {"from": strategy})
+        to_send = velo.balanceOf(strategy)
+        velo.transfer(gov, to_send, {"from": strategy})
         if has_rewards:
             to_send = rewards_token.balanceOf(strategy)
             rewards_token.transfer(gov, to_send, {"from": strategy})
@@ -89,8 +90,10 @@ def test_odds_and_ends(
         new_strategy = strategist.deploy(
             contract_name,
             vault,
-            pid,
+            gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
     else:
@@ -99,6 +102,8 @@ def test_odds_and_ends(
             vault,
             gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
 
@@ -106,8 +111,8 @@ def test_odds_and_ends(
 
     # migrate our old strategy
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-    if not is_convex:
-        proxy.approveStrategy(strategy.gauge(), new_strategy, {"from": gov})
+    # if not is_convex:
+    #     proxy.approveStrategy(strategy.gauge(), new_strategy, {"from": gov})
 
     # assert that our old strategy is empty
     updated_total_old = strategy.estimatedTotalAssets()
@@ -156,9 +161,8 @@ def test_odds_and_ends_2(
     strategy,
     chain,
     strategist_ms,
-    voter,
     gauge,
-    cvxDeposit,
+    # cvxDeposit,
     amount,
     is_convex,
     gauge_is_not_tokenized,
@@ -176,17 +180,17 @@ def test_odds_and_ends_2(
     # send away all funds, will need to alter this based on strategy
     if is_convex:
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
     else:
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
+        gauge.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
 
     strategy.setEmergencyExit({"from": gov})
@@ -214,14 +218,16 @@ def test_odds_and_ends_migration(
     strategy,
     chain,
     strategist_ms,
-    proxy,
-    pid,
+    # proxy,
+    # pid,
     amount,
     gauge,
     pool,
     strategy_name,
     is_convex,
     sleep_time,
+    other,
+    healthCheck
 ):
 
     ## deposit to the vault after approving
@@ -236,8 +242,10 @@ def test_odds_and_ends_migration(
         new_strategy = strategist.deploy(
             contract_name,
             vault,
-            pid,
+            gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
     else:
@@ -246,6 +254,8 @@ def test_odds_and_ends_migration(
             vault,
             gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
     total_old = strategy.estimatedTotalAssets()
@@ -261,8 +271,8 @@ def test_odds_and_ends_migration(
 
     # migrate our old strategy
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-    if not is_convex:
-        proxy.approveStrategy(strategy.gauge(), new_strategy, {"from": gov})
+    # if not is_convex:
+    #     proxy.approveStrategy(strategy.gauge(), new_strategy, {"from": gov})
 
     # assert that our old strategy is empty
     updated_total_old = strategy.estimatedTotalAssets()
@@ -309,8 +319,7 @@ def test_odds_and_ends_liquidatePosition(
     chain,
     strategist_ms,
     gauge,
-    voter,
-    rewardsContract,
+    # rewardsContract,
     amount,
     is_slippery,
     no_profit,
@@ -324,10 +333,7 @@ def test_odds_and_ends_liquidatePosition(
     newWhale = token.balanceOf(whale)
 
     # this is part of our check into the staking contract balance
-    if is_convex:
-        stakingBeforeHarvest = rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest = strategy.stakedBalance()
+    stakingBeforeHarvest = strategy.stakedBalance()
 
     # harvest, store asset amount
     chain.sleep(1)
@@ -340,10 +346,7 @@ def test_odds_and_ends_liquidatePosition(
     print("\nStarting Assets: ", old_assets / 1e18)
 
     # try and include custom logic here to check that funds are in the staking contract (if needed)
-    if is_convex:
-        stakingBeforeHarvest < rewardsContract.balanceOf(strategy)
-    else:
-        stakingBeforeHarvest < strategy.stakedBalance()
+    stakingBeforeHarvest < strategy.stakedBalance()
 
     # simulate time for earnings
     chain.sleep(sleep_time)
@@ -394,11 +397,10 @@ def test_odds_and_ends_rekt(
     strategy,
     chain,
     strategist_ms,
-    voter,
-    cvxDeposit,
-    rewardsContract,
-    crv,
-    convexToken,
+    # cvxDeposit,
+    # rewardsContract,
+    velo,
+    # convexToken,
     amount,
     is_convex,
     gauge,
@@ -420,13 +422,13 @@ def test_odds_and_ends_rekt(
         # set claim rewards to true and send away CRV and CVX so we don't have dust leftover, this is a problem with uni v3
         strategy.setClaimRewards(True, {"from": gov})
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
-        to_send = crv.balanceOf(strategy)
-        crv.transfer(gov, to_send, {"from": strategy})
-        to_send = convexToken.balanceOf(strategy)
-        convexToken.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        to_send = velo.balanceOf(strategy)
+        velo.transfer(gov, to_send, {"from": strategy})
+        # to_send = convexToken.balanceOf(strategy)
+        # convexToken.transfer(gov, to_send, {"from": strategy})
         if has_rewards:
             to_send = rewards_token.balanceOf(strategy)
             rewards_token.transfer(gov, to_send, {"from": strategy})
@@ -435,11 +437,11 @@ def test_odds_and_ends_rekt(
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
-        to_send = crv.balanceOf(strategy)
-        crv.transfer(gov, to_send, {"from": strategy})
+        gauge.transfer(gov, to_send, {"from": strategy})
+        to_send = velo.balanceOf(strategy)
+        velo.transfer(gov, to_send, {"from": strategy})
         if has_rewards:
             to_send = rewards_token.balanceOf(strategy)
             rewards_token.transfer(gov, to_send, {"from": strategy})
@@ -470,8 +472,7 @@ def test_odds_and_ends_liquidate_rekt(
     strategy,
     chain,
     strategist_ms,
-    voter,
-    cvxDeposit,
+    #cvxDeposit,
     amount,
     gauge,
     is_convex,
@@ -489,17 +490,17 @@ def test_odds_and_ends_liquidate_rekt(
     # send away all funds, will need to alter this based on strategy
     if is_convex:
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
     else:
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(strategy)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
+        gauge.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
 
     # we can also withdraw from an empty vault as well, but make sure we're okay with losing 100%
@@ -547,8 +548,6 @@ def test_odds_and_ends_empty_strat(
     strategy,
     chain,
     strategist_ms,
-    voter,
-    cvxDeposit,
     amount,
     sleep_time,
     is_slippery,
@@ -583,9 +582,9 @@ def test_odds_and_ends_empty_strat(
         # send away all funds so we have profit but no assets. make sure to turn off claimRewards first
         strategy.setClaimRewards(False, {"from": gov})
         strategy.withdrawToConvexDepositTokens({"from": gov})
-        to_send = cvxDeposit.balanceOf(strategy)
-        print("cvxToken Balance of Strategy", to_send)
-        cvxDeposit.transfer(gov, to_send, {"from": strategy})
+        # to_send = cvxDeposit.balanceOf(strategy)
+        # print("cvxToken Balance of Strategy", to_send)
+        # cvxDeposit.transfer(gov, to_send, {"from": strategy})
         assert strategy.estimatedTotalAssets() == 0
         if not no_profit:
             assert strategy.claimableBalance() > 0
@@ -593,10 +592,10 @@ def test_odds_and_ends_empty_strat(
         if gauge_is_not_tokenized:
             return
         # send all funds out of the gauge, then send back 1 wei so we can claim rewards
-        to_send = gauge.balanceOf(voter)
+        to_send = gauge.balanceOf(votstrategyer)
         print("Gauge Balance of Vault", to_send / 1e18)
-        gauge.transfer(gov, to_send, {"from": voter})
-        gauge.transfer(voter, 1, {"from": gov})
+        gauge.transfer(gov, to_send, {"from": strategy})
+        gauge.transfer(strategy, 1, {"from": gov})
         assert strategy.estimatedTotalAssets() == 1
 
     # our whale donates 1 wei to the vault so we don't divide by zero (0.3.5 vault, errors in vault._reportLoss)
@@ -619,8 +618,6 @@ def test_odds_and_ends_no_profit(
     strategy,
     chain,
     strategist_ms,
-    voter,
-    cvxDeposit,
     amount,
     sleep_time,
     is_slippery,
@@ -668,58 +665,57 @@ def test_odds_and_ends_no_profit(
         assert token.balanceOf(whale) >= startingWhale
 
 
-# this test makes sure we can use keepCVX
-def test_odds_and_ends_keep_cvx(
-    gov,
-    token,
-    vault,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    strategist_ms,
-    voter,
-    cvxDeposit,
-    amount,
-    sleep_time,
-    convexToken,
-    is_convex,
-    no_profit,
-):
-    if not is_convex:
-        return
-    ## deposit to the vault after approving
-    token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(amount, {"from": whale})
-    strategy.harvest({"from": gov})
+# # this test makes sure we can use keepCVX
+# def test_odds_and_ends_keep_cvx(
+#     gov,
+#     token,
+#     vault,
+#     strategist,
+#     whale,
+#     strategy,
+#     chain,
+#     strategist_ms,
+#     cvxDeposit,
+#     amount,
+#     sleep_time,
+#     convexToken,
+#     is_convex,
+#     no_profit,
+# ):
+#     if not is_convex:
+#         return
+#     ## deposit to the vault after approving
+#     token.approve(vault, 2 ** 256 - 1, {"from": whale})
+#     vault.deposit(amount, {"from": whale})
+#     strategy.harvest({"from": gov})
 
-    # sleep to get some profit
-    chain.sleep(sleep_time)
-    chain.mine(1)
+#     # sleep to get some profit
+#     chain.sleep(sleep_time)
+#     chain.mine(1)
 
-    # take 100% of our CVX to the treasury
-    strategy.setKeep(
-        1000, 10000, "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", {"from": gov}
-    )
-    chain.sleep(1)
-    chain.mine(1)
-    treasury_before = convexToken.balanceOf(strategy.keepCVXDestination())
-    tx = strategy.harvest({"from": gov})
-    treasury_after = convexToken.balanceOf(strategy.keepCVXDestination())
-    if not no_profit:
-        assert treasury_after > treasury_before
+#     # take 100% of our CVX to the treasury
+#     strategy.setKeep(
+#         1000, 10000, "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", {"from": gov}
+#     )
+#     chain.sleep(1)
+#     chain.mine(1)
+#     treasury_before = convexToken.balanceOf(strategy.keepCVXDestination())
+#     tx = strategy.harvest({"from": gov})
+#     treasury_after = convexToken.balanceOf(strategy.keepCVXDestination())
+#     if not no_profit:
+#         assert treasury_after > treasury_before
 
-    # sleep to get some profit
-    chain.sleep(sleep_time)
-    chain.mine(1)
+#     # sleep to get some profit
+#     chain.sleep(sleep_time)
+#     chain.mine(1)
 
-    # take 0% of our CVX to the treasury
-    strategy.setKeep(
-        1000, 0, "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", {"from": gov}
-    )
-    chain.sleep(1)
-    chain.mine(1)
-    treasury_before = convexToken.balanceOf(vault.rewards())
-    strategy.harvest({"from": gov})
-    treasury_after = convexToken.balanceOf(vault.rewards())
-    assert treasury_after == treasury_before
+#     # take 0% of our CVX to the treasury
+#     strategy.setKeep(
+#         1000, 0, "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", {"from": gov}
+#     )
+#     chain.sleep(1)
+#     chain.mine(1)
+#     treasury_before = convexToken.balanceOf(vault.rewards())
+#     strategy.harvest({"from": gov})
+#     treasury_after = convexToken.balanceOf(vault.rewards())
+#     assert treasury_after == treasury_before

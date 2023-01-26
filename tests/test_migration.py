@@ -14,16 +14,15 @@ def test_migration(
     whale,
     strategy,
     chain,
-    proxy,
     strategist_ms,
     healthCheck,
-    pid,
     amount,
     pool,
     strategy_name,
     sleep_time,
     is_convex,
     gauge,
+    other
 ):
 
     ## deposit to the vault after approving
@@ -39,8 +38,10 @@ def test_migration(
         new_strategy = strategist.deploy(
             contract_name,
             vault,
-            pid,
+            gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
 
@@ -55,6 +56,8 @@ def test_migration(
             vault,
             gauge,
             pool,
+            other,
+            healthCheck,
             strategy_name,
         )
         # harvestTrigger check for isActive() doesn't work if we have multiple curve strategies for the same LP
@@ -68,10 +71,6 @@ def test_migration(
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
     new_strategy.setHealthCheck(healthCheck, {"from": gov})
     new_strategy.setDoHealthCheck(True, {"from": gov})
-
-    # if a curve strat, whitelist on our strategy proxy
-    if not is_convex:
-        proxy.approveStrategy(strategy.gauge(), new_strategy, {"from": gov})
 
     # assert that our old strategy is empty
     updated_total_old = strategy.estimatedTotalAssets()

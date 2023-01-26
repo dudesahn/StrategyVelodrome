@@ -3,16 +3,14 @@ from brownie import Contract
 from brownie import config
 import math
 
-# test the our strategy's ability to deposit, harvest, and withdraw, with different optimal deposit tokens if we have them
+# test the our strategy's ability to deposit, harvest, and withdraw
 def test_simple_harvest(
     gov,
     token,
     vault,
-    strategist,
     whale,
     strategy,
     chain,
-    strategist_ms,
     gauge,
     amount,
     sleep_time,
@@ -21,17 +19,20 @@ def test_simple_harvest(
     is_convex,
     velo,
     accounts,
+    usdc,
+    other
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
-    newWhale = token.balanceOf(whale)
+    print("vault token bal: ", token.balanceOf(vault) / 1e18)
     chain.sleep(1)
     chain.mine(1)
 
     # this is part of our check into the staking contract balance
     stakingBeforeHarvest = strategy.stakedBalance()
+    print("stakingbeforeharvest: ", stakingBeforeHarvest / 1e18)
 
     # harvest, store asset amount
     tx = strategy.harvest({"from": gov})
@@ -47,21 +48,32 @@ def test_simple_harvest(
 
     # try and include custom logic here to check that funds are in the staking contract (if needed)
     stakingBeforeHarvest < strategy.stakedBalance()
+    staked1 = strategy.stakedBalance()
 
     # simulate profits
     chain.sleep(sleep_time)
     chain.mine(1)
 
+    print("earned: ", gauge.earned(velo, strategy) / 1e18)
+
     # harvest, store new asset amount
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
+    print("Harvest info:", tx.events["Harvested"])
     chain.sleep(1)
     new_assets = vault.totalAssets()
-    new_velo = velo.balanceOf(strategy)
-    print("new_velo: ", new_velo / 1e18)
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets
     print("\nAssets after 1 day: ", new_assets / 1e18)
+    print("gauge_deposit", gauge.balanceOf(strategy) / 1e18)
+    print("earned: ", gauge.earned(velo, strategy) / 1e18)
+    print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
+    staked2 = strategy.stakedBalance()
+    print("stakingafterharvest2: ", staked2 / 1e18)
+    print("usdc bal: ", usdc.balanceOf(strategy) / 1e6)
+    print("other bal: ", other.balanceOf(strategy) / 1e18)
+    print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
+    print("vault token bal: ", token.balanceOf(vault) / 1e18)
 
     # Display estimated APR
     print(
@@ -72,6 +84,42 @@ def test_simple_harvest(
         ),
     )
     print("Harvest info:", tx.events["Harvested"])
+
+    # simulate profits
+    chain.sleep(sleep_time)
+    chain.mine(1)
+
+    print("earned: ", gauge.earned(velo, strategy) / 1e18)
+
+    # harvest, store new asset amount
+    chain.sleep(1)
+    tx = strategy.harvest({"from": gov})
+    print("Harvest info:", tx.events["Harvested"])
+    chain.sleep(1)
+    new_assets = vault.totalAssets()
+    # confirm we made money, or at least that we have about the same
+    assert new_assets >= old_assets
+    print("\nAssets after 1 day: ", new_assets / 1e18)
+    print("gauge_deposit", gauge.balanceOf(strategy) / 1e18)
+    print("earned: ", gauge.earned(velo, strategy) / 1e18)
+    print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
+    staked2 = strategy.stakedBalance()
+    print("stakingafterharvest2: ", staked2 / 1e18)
+    print("usdc bal: ", usdc.balanceOf(strategy) / 1e6)
+    print("other bal: ", other.balanceOf(strategy) / 1e18)
+    print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
+    print("vault token bal: ", token.balanceOf(vault) / 1e18)
+
+    # Display estimated APR
+    print(
+        "\nEstimated DAI APR: ",
+        "{:.2%}".format(
+            ((new_assets - old_assets) * (365 * 86400 / (sleep_time * 2)))
+            / (strategy.estimatedTotalAssets())
+        ),
+    )
+    print("Harvest info:", tx.events["Harvested"])
+
     if not no_profit:
         assert tx.events["Harvested"]["profit"] > 0
 
@@ -88,6 +136,7 @@ def test_simple_harvest(
         chain.mine(1)
         strategy.setDoHealthCheck(False, {"from": gov})
         tx = strategy.harvest({"from": gov})
+        print("Harvest info:", tx.events["Harvested"])
         chain.sleep(1)
         chain.mine(1)
         new_assets = vault.totalAssets()
@@ -119,6 +168,7 @@ def test_simple_harvest(
             chain.mine(1)
             strategy.setDoHealthCheck(False, {"from": gov})
             tx = strategy.harvest({"from": gov})
+            print("Harvest info:", tx.events["Harvested"])
             chain.sleep(1)
             chain.mine(1)
             new_assets = vault.totalAssets()
@@ -139,75 +189,6 @@ def test_simple_harvest(
 
         # end here if no profit, no reason to test USDC and USDT
         return
-
-    # change our optimal deposit asset
-    strategy.setOptimal(1, {"from": gov})
-
-    # store asset amount
-    before_usdc_assets = vault.totalAssets()
-    assert token.balanceOf(strategy) == 0
-
-    # try and include custom logic here to check that funds are in the staking contract (if needed)
-    stakingBeforeHarvest < strategy.stakedBalance()
-
-    # simulate profits
-    chain.sleep(sleep_time)
-    chain.mine(1)
-
-    # harvest, store new asset amount
-    chain.sleep(1)
-    tx = strategy.harvest({"from": gov})
-    chain.sleep(1)
-    after_usdc_assets = vault.totalAssets()
-    # confirm we made money, or at least that we have about the same
-    assert after_usdc_assets >= before_usdc_assets
-
-    # Display estimated APR
-    print(
-        "\nEstimated USDC APR: ",
-        "{:.2%}".format(
-            ((after_usdc_assets - before_usdc_assets) * (365 * 86400 / sleep_time))
-            / (strategy.estimatedTotalAssets())
-        ),
-    )
-    print("Harvest info:", tx.events["Harvested"])
-    if not no_profit:
-        assert tx.events["Harvested"]["profit"] > 0
-
-    # change our optimal deposit asset
-    strategy.setOptimal(2, {"from": gov})
-
-    # store asset amount
-    before_usdt_assets = vault.totalAssets()
-    assert token.balanceOf(strategy) == 0
-    assert strategy.estimatedTotalAssets() > 0
-
-    # try and include custom logic here to check that funds are in the staking contract (if needed)
-    stakingBeforeHarvest < strategy.stakedBalance()
-
-    # simulate profits
-    chain.sleep(sleep_time)
-    chain.mine(1)
-
-    # harvest, store new asset amount
-    chain.sleep(1)
-    tx = strategy.harvest({"from": gov})
-    chain.sleep(1)
-    after_usdt_assets = vault.totalAssets()
-    # confirm we made money, or at least that we have about the same
-    assert after_usdt_assets >= before_usdt_assets
-
-    # Display estimated APR
-    print(
-        "\nEstimated USDT APR: ",
-        "{:.2%}".format(
-            ((after_usdt_assets - before_usdt_assets) * (365 * 86400 / sleep_time))
-            / (strategy.estimatedTotalAssets())
-        ),
-    )
-    print("Harvest info:", tx.events["Harvested"])
-    if not no_profit:
-        assert tx.events["Harvested"]["profit"] > 0
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
