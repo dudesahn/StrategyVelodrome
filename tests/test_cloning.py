@@ -22,9 +22,7 @@ def test_cloning(
     tests_using_tenderly,
     is_slippery,
     no_profit,
-    is_convex,
     vault_address,
-    has_rewards,
     rewards_token,
     is_clonable,
     other,
@@ -37,55 +35,24 @@ def test_cloning(
 
     # tenderly doesn't work for "with brownie.reverts"
     if tests_using_tenderly:
-        if is_convex:
-            ## clone our strategy
-            tx = strategy.cloneVeloUsdc(
-                vault,
-                strategist,
-                rewards,
-                keeper,
-                gauge,
-                pool,
-                other,
-                healthCheck,
-                strategy_name,
-                {"from": gov},
-            )
-            newStrategy = contract_name.at(tx.return_value)
-        else:
-            ## clone our strategy
-            tx = strategy.cloneVeloUsdc(
-                vault,
-                strategist,
-                rewards,
-                keeper,
-                gauge,
-                pool,
-                other,
-                healthCheck,
-                strategy_name,
-                {"from": gov},
-            )
-            newStrategy = contract_name.at(tx.return_value)
+        ## clone our strategy
+        tx = strategy.cloneVeloUsdc(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            gauge,
+            pool,
+            other,
+            healthCheck,
+            strategy_name,
+            {"from": gov},
+        )
+        newStrategy = contract_name.at(tx.return_value)
     else:
-        if is_convex:
-            # Shouldn't be able to call initialize again
-            with brownie.reverts():
-                strategy.initialize(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
-
-            ## clone our strategy
-            tx = strategy.cloneVeloUsdc(
+        # Shouldn't be able to call initialize again
+        with brownie.reverts():
+            strategy.initialize(
                 vault,
                 strategist,
                 rewards,
@@ -97,56 +64,25 @@ def test_cloning(
                 strategy_name,
                 {"from": gov},
             )
-            newStrategy = contract_name.at(tx.return_value)
 
-            # Shouldn't be able to call initialize again
-            with brownie.reverts():
-                newStrategy.initialize(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
+        ## clone our strategy
+        tx = strategy.cloneVeloUsdc(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            gauge,
+            pool,
+            other,
+            healthCheck,
+            strategy_name,
+            {"from": gov},
+        )
+        newStrategy = contract_name.at(tx.return_value)
 
-            ## shouldn't be able to clone a clone
-            with brownie.reverts():
-                newStrategy.cloneVeloUsdc(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
-
-        else:
-            # Shouldn't be able to call initialize again
-            with brownie.reverts():
-                strategy.initialize(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
-
-            ## clone our strategy
-            tx = strategy.cloneVeloUsdc(
+        # Shouldn't be able to call initialize again
+        with brownie.reverts():
+            newStrategy.initialize(
                 vault,
                 strategist,
                 rewards,
@@ -158,37 +94,21 @@ def test_cloning(
                 strategy_name,
                 {"from": gov},
             )
-            newStrategy = contract_name.at(tx.return_value)
 
-            # Shouldn't be able to call initialize again
-            with brownie.reverts():
-                newStrategy.initialize(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
-
-            ## shouldn't be able to clone a clone
-            with brownie.reverts():
-                newStrategy.cloneVeloUsdc(
-                    vault,
-                    strategist,
-                    rewards,
-                    keeper,
-                    gauge,
-                    pool,
-                    other,
-                    healthCheck,
-                    strategy_name,
-                    {"from": gov},
-                )
+        ## shouldn't be able to clone a clone
+        with brownie.reverts():
+            newStrategy.cloneVeloUsdc(
+                vault,
+                strategist,
+                rewards,
+                keeper,
+                gauge,
+                pool,
+                other,
+                healthCheck,
+                strategy_name,
+                {"from": gov},
+            )
 
     # revoke and get funds back into vault
     currentDebt = vault.strategies(strategy)["debtRatio"]
@@ -211,13 +131,6 @@ def test_cloning(
             assert vault.withdrawalQueue(2) == newStrategy
     assert vault.strategies(newStrategy)["debtRatio"] == currentDebt
     assert vault.strategies(strategy)["debtRatio"] == 0
-
-    # add rewards token if needed
-    if has_rewards:
-        if is_convex:
-            newStrategy.updateRewards(True, 0, {"from": gov})
-        else:
-            newStrategy.updateRewards(True, rewards_token, {"from": gov})
 
     ## deposit to the vault after approving; this is basically just our simple_harvest test
     before_pps = vault.pricePerShare()

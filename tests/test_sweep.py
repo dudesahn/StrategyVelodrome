@@ -7,11 +7,9 @@ def test_sweep(
     gov,
     token,
     vault,
-    strategist,
     whale,
     strategy,
     chain,
-    strategist_ms,
     farmed,
     amount,
 ):
@@ -25,7 +23,6 @@ def test_sweep(
     strategy.sweep(farmed, {"from": gov})
 
     # Strategy want token doesn't work
-    startingWhale = token.balanceOf(whale)
     token.transfer(strategy.address, amount, {"from": whale})
     assert token.address == strategy.want()
     assert token.balanceOf(strategy) > 0

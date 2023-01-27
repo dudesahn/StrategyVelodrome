@@ -13,8 +13,6 @@ def test_setters(
     vault,
     amount,
     gasOracle,
-    strategist_ms,
-    is_convex,
     oracle_gov
 ):
 
@@ -63,17 +61,6 @@ def test_setters(
     strategy.setProfitFactor(1000, {"from": gov})
     strategy.setRewards(gov, {"from": strategist})
 
-    # if is_convex:
-    #     strategy.setKeep(10, 0, gov, {"from": gov})
-    #     strategy.setClaimRewards(True, {"from": gov})
-    #     strategy.setHarvestTriggerParams(90000e6, 150000e6, 1e24, False, {"from": gov})
-    # else:
-    #     strategy.setKeepCRV(0, {"from": gov})
-    # try:
-    #     strategy.setUniFees(3000, {"from": gov})
-    # except:
-    #     print("\nThis strategy doesn't have Uniswap fees, most likely ETH-based")
-
     strategy.setStrategist(strategist, {"from": gov})
     name = strategy.name()
     print("Strategy Name:", name)
@@ -103,14 +90,6 @@ def test_setters(
         strategy.setMaxReportDelay(1000, {"from": whale})
     with brownie.reverts():
         strategy.setRewards(strategist, {"from": whale})
-    # if is_convex:
-    #     with brownie.reverts():
-    #         strategy.setKeep(10_001, 0, gov, {"from": gov})
-    #     with brownie.reverts():
-    #         strategy.setKeep(0, 10_001, gov, {"from": gov})
-    # else:
-    #     with brownie.reverts():
-    #         strategy.setKeepCRV(10_001, {"from": gov})
 
     # try a health check with zero address as health check
     strategy.setHealthCheck(zero, {"from": gov})

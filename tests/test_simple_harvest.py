@@ -16,7 +16,6 @@ def test_simple_harvest(
     sleep_time,
     is_slippery,
     no_profit,
-    is_convex,
     velo,
     accounts,
     usdc,
@@ -154,41 +153,6 @@ def test_simple_harvest(
         )
         print("CRV harvest info:", tx.events["Harvested"])
         assert tx.events["Harvested"]["profit"] > 0
-
-        if is_convex:
-            cvx = Contract("0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B")
-            cvx_whale = accounts.at(
-                "0x28C6c06298d514Db089934071355E5743bf21d60", force=True
-            )
-            cvx.transfer(strategy, 1000e18, {"from": cvx_whale})
-
-            # harvest, store new asset amount, turn off health check since we're donating a lot
-            old_assets = vault.totalAssets()
-            chain.sleep(1)
-            chain.mine(1)
-            strategy.setDoHealthCheck(False, {"from": gov})
-            tx = strategy.harvest({"from": gov})
-            print("Harvest info:", tx.events["Harvested"])
-            chain.sleep(1)
-            chain.mine(1)
-            new_assets = vault.totalAssets()
-            # confirm we made money, or at least that we have about the same
-            assert new_assets >= old_assets
-            print("\nAssets after 1 day: ", new_assets / 1e18)
-
-            # Display estimated APR
-            print(
-                "\nEstimated Simulated CVX APR: ",
-                "{:.2%}".format(
-                    ((new_assets - old_assets) * (365 * 86400 / sleep_time))
-                    / (strategy.estimatedTotalAssets())
-                ),
-            )
-            print("CVX harvest info:", tx.events["Harvested"])
-            assert tx.events["Harvested"]["profit"] > 0
-
-        # end here if no profit, no reason to test USDC and USDT
-        return
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)

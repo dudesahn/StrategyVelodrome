@@ -8,7 +8,6 @@ def test_withdraw_after_donation_1(
     gov,
     token,
     vault,
-    strategist,
     whale,
     strategy,
     chain,

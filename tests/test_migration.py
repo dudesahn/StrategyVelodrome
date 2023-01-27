@@ -9,18 +9,15 @@ def test_migration(
     gov,
     token,
     vault,
-    guardian,
     strategist,
     whale,
     strategy,
     chain,
-    strategist_ms,
     healthCheck,
     amount,
     pool,
     strategy_name,
     sleep_time,
-    is_convex,
     gauge,
     other
 ):
@@ -33,34 +30,17 @@ def test_migration(
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    if is_convex:
-        # make sure to include all constructor parameters needed here
-        new_strategy = strategist.deploy(
-            contract_name,
-            vault,
-            gauge,
-            pool,
-            other,
-            healthCheck,
-            strategy_name,
-        )
-
-        # can we harvest an unactivated strategy? should be no
-        tx = new_strategy.harvestTrigger(0, {"from": gov})
-        print("\nShould we harvest? Should be False.", tx)
-        assert tx == False
-    else:
-        # make sure to include all constructor parameters needed here
-        new_strategy = strategist.deploy(
-            contract_name,
-            vault,
-            gauge,
-            pool,
-            other,
-            healthCheck,
-            strategy_name,
-        )
-        # harvestTrigger check for isActive() doesn't work if we have multiple curve strategies for the same LP
+    # make sure to include all constructor parameters needed here
+    new_strategy = strategist.deploy(
+        contract_name,
+        vault,
+        gauge,
+        pool,
+        other,
+        healthCheck,
+        strategy_name,
+    )
+    # harvestTrigger check for isActive() doesn't work if we have multiple curve strategies for the same LP
 
     total_old = strategy.estimatedTotalAssets()
 
