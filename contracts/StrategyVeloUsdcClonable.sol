@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
@@ -60,7 +61,8 @@ interface IGauge {
         address[] memory tokens
     ) external;
 
-
+    function stake(
+    ) external view returns (address);
 }
 
 abstract contract StrategyVeloBase is BaseStrategy {
@@ -119,7 +121,7 @@ abstract contract StrategyVeloBase is BaseStrategy {
         // Deposit all of our LP tokens in the gauge, if we have any
         uint256 _toInvest = balanceOfWant();
         if (_toInvest > 0) {
-            IGauge(gauge).deposit(_toInvest, 0); // tokenId = 0 //STILL CONFUSED ABOUT THE TOKENID BIT//
+            IGauge(gauge).deposit(_toInvest, 0); // tokenId = 0
         }
     }
 
@@ -281,7 +283,8 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         string memory _name
     ) internal {
         // make sure that we haven't initialized this before
-        require(address(pool) == address(0)); // already initialized.
+        require(address(pool) == address(0)); // already initialized
+        require(IGauge(_gauge).stake() == _veloPool); // incorrect gauge
 
         // You can set these parameters on deployment to whatever you want
         maxReportDelay = 28 days; // 28 days in seconds
@@ -340,24 +343,27 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         // check for balances of tokens to deposit
         uint256 _usdcBalance = usdc.balanceOf(address(this));
-        uint256 _otherBalance = IERC20(other).balanceOf(address(this));
 
         // deposit our USDC balance to Velodrome, if we have any
         if (_usdcBalance > 0) {
+            uint256 _otherBalance = IERC20(other).balanceOf(address(this));
+            uint256 _usdcB = usdc.balanceOf(pool);
+            uint256 _otherB = IERC20(other).balanceOf(pool);
+            
+            // usdc has 6 decimals so we will need to scale decimals
+            address _usdc_addr = address(usdc);
+            uint256 _otherBScaled = _scaleDecimals(_otherB, ERC20(_usdc_addr), ERC20(other));
 
-            uint256 usdcB = usdc.balanceOf(pool);
-            uint256 otherB = IERC20(other).balanceOf(pool);
+            // determine how much usdc to sell for other for balanced add liquidity
+            uint256 _usdcToSell = _usdcBalance.mul(_otherBScaled).div(_usdcB.add(_otherBScaled));
 
-            // usdc has 6 decimals whereas "other" probably has 18 decimals
-            uint256 otherWeNeed = _usdcBalance.mul(otherB / 1e12).div(usdcB.add(otherB / 1e12));
-
-            if (otherWeNeed > 10e6) {
+            if (_usdcToSell > 10e6) {
                 // swap usdc for other
-                _sellusdc(otherWeNeed);
+                _sellusdc(_usdcToSell);
             }
 
-            uint256 _usdcBalance = usdc.balanceOf(address(this));
-            uint256 _otherBalance = IERC20(other).balanceOf(address(this));
+            _usdcBalance = usdc.balanceOf(address(this));
+            _otherBalance = IERC20(other).balanceOf(address(this));
            
             if (_otherBalance > 0 && _usdcBalance > 0) {
                 // deposit into lp
@@ -442,6 +448,13 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             block.timestamp // deadline
         );
     }
+
+
+    function _scaleDecimals(uint256 _amount, ERC20 _fromToken, ERC20 _toToken) internal view returns (uint256 _scaled){
+        uint256 decFrom = _fromToken.decimals();
+        uint256 decTo = _toToken.decimals();
+        return decTo > decFrom ? _amount.div(10 ** (decTo.sub(decFrom))) : _amount.mul(10 ** (decFrom.sub(decTo)));
+}
 
     /* ========== KEEP3RS ========== */
     // use this to determine when to harvest
