@@ -368,16 +368,16 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             if (_otherBalance > 0 && _usdcBalance > 0) {
                 // deposit into lp
                 IVelodromeRouter(velodromeRouter).addLiquidity(
-                address(usdc), // tokenA
-                address(other), // tokenB
-                true, // stable
-                _usdcBalance, // amountADesired
-                _otherBalance, // amountBDesired
-                0, // amountAMin
-                0, // amountBMin
-                address(this), // to
-                block.timestamp // deadline
-            );
+                    address(usdc), // tokenA
+                    address(other), // tokenB
+                    true, // stable
+                    _usdcBalance, // amountADesired
+                    _otherBalance, // amountBDesired
+                    0, // amountAMin
+                    0, // amountBMin
+                    address(this), // to
+                    block.timestamp // deadline
+                );
             }
         }
 
