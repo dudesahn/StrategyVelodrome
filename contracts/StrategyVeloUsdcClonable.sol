@@ -335,7 +335,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             uint256 _otherBScaled = _scaleDecimals(_otherB, ERC20(_usdc_addr), ERC20(other));
 
             // determine how much usdc to sell for other for balanced add liquidity
-            uint256 _usdcToSell = _usdcBalance * _otherBScaled / _usdcB + _otherBScaled;
+            uint256 _usdcToSell = _usdcBalance * _otherBScaled / (_usdcB + _otherBScaled);
 
             if (_usdcToSell > 10e6) {
                 // swap usdc for other
