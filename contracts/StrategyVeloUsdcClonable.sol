@@ -1,22 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity 0.6.12;
+pragma solidity ^0.8.15;
 pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./interfaces/yearn.sol";
-import {
-    BaseStrategy,
-    StrategyParams
-} from "@yearnvaults/contracts/BaseStrategy.sol";
-
-interface IBaseFee {
-    function isCurrentBaseFeeAcceptable() external view returns (bool);
-}
+import "@yearnvaults/contracts/BaseStrategy.sol";
 
 interface IVelodromeRouter {
     function addLiquidity(
@@ -48,6 +39,10 @@ interface IGauge {
         uint tokenId
     ) external;
 
+    function balanceOf(
+        address 
+    ) external view returns (uint256);
+
     function withdraw(
         uint amount
     ) external;
@@ -66,7 +61,6 @@ interface IGauge {
 }
 
 abstract contract StrategyVeloBase is BaseStrategy {
-    using Address for address;
 
     /* ========== STATE VARIABLES ========== */
     // these should stay the same across different wants.
@@ -83,14 +77,11 @@ abstract contract StrategyVeloBase is BaseStrategy {
 
     address[] public onlyVelo;
 
-    uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest
-    bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
-
     string internal stratName;
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _vault) public BaseStrategy(_vault) {}
+    constructor(address _vault) BaseStrategy(_vault) {}
 
     /* ========== VIEWS ========== */
 
@@ -100,7 +91,7 @@ abstract contract StrategyVeloBase is BaseStrategy {
 
     ///@notice How much want we have staked in Velodrome's gauge
     function stakedBalance() public view returns (uint256) {
-        return IGauge(gauge).derivedBalance(address(this));
+        return IGauge(gauge).balanceOf(address(this));
     }
 
     ///@notice Balance of want sitting in our strategy
@@ -109,7 +100,7 @@ abstract contract StrategyVeloBase is BaseStrategy {
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
-        return balanceOfWant().add(stakedBalance());
+        return balanceOfWant() + stakedBalance();
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -135,11 +126,11 @@ abstract contract StrategyVeloBase is BaseStrategy {
             // check if we have enough free funds to cover the withdrawal
             uint256 _stakedBal = stakedBalance();
             if (_stakedBal > 0) {
-                IGauge(gauge).withdraw(Math.min(_stakedBal, _amountNeeded.sub(_wantBal)));
+                IGauge(gauge).withdraw(Math.min(_stakedBal, _amountNeeded - _wantBal));
             }
             uint256 _withdrawnBal = balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
-            _loss = _amountNeeded.sub(_liquidatedAmount);
+            _loss = _amountNeeded - _liquidatedAmount;
         } else {
             // we have enough balance to cover the liquidation available
             return (_amountNeeded, 0);
@@ -162,21 +153,10 @@ abstract contract StrategyVeloBase is BaseStrategy {
         override
         returns (address[] memory)
     {}
-
-    /* ========== SETTERS ========== */
-
-    // These functions are useful for setting parameters of the strategy that may need to be adjusted.
-
-    // This allows us to manually harvest with our keeper as needed
-    function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce)
-        external
-        onlyVaultManagers
-    {
-        forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
-    }
 }
 
 contract StrategyVeloUsdcClonable is StrategyVeloBase {
+    using SafeERC20 for IERC20;
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
@@ -201,7 +181,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         address _otherToken,
         address _healthCheck,
         string memory _name
-    ) public StrategyVeloBase(_vault) {
+    ) StrategyVeloBase(_vault) {
         _initializeStrat(_gauge, _veloPool, _otherToken, _healthCheck, _name);
     }
 
@@ -355,7 +335,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             uint256 _otherBScaled = _scaleDecimals(_otherB, ERC20(_usdc_addr), ERC20(other));
 
             // determine how much usdc to sell for other for balanced add liquidity
-            uint256 _usdcToSell = _usdcBalance.mul(_otherBScaled).div(_usdcB.add(_otherBScaled));
+            uint256 _usdcToSell = _usdcBalance * _otherBScaled / _usdcB + _otherBScaled;
 
             if (_usdcToSell > 10e6) {
                 // swap usdc for other
@@ -366,6 +346,8 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             _otherBalance = IERC20(other).balanceOf(address(this));
            
             if (_otherBalance > 0 && _usdcBalance > 0) {
+                uint256 _usdc98 = _usdcBalance * 98 / 100;
+                uint256 _other98 = _otherBalance * 98 / 100;
                 // deposit into lp
                 IVelodromeRouter(velodromeRouter).addLiquidity(
                     address(usdc), // tokenA
@@ -373,8 +355,8 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
                     true, // stable
                     _usdcBalance, // amountADesired
                     _otherBalance, // amountBDesired
-                    0, // amountAMin
-                    0, // amountBMin
+                    _usdc98, // amountAMin
+                    _other98, // amountBMin
                     address(this), // to
                     block.timestamp // deadline
                 );
@@ -396,21 +378,18 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         uint256 debt = vault.strategies(address(this)).totalDebt;
 
         // if assets are greater than debt, things are working great!
-        if (assets >= debt) {
-            _profit = assets.sub(debt);
+        if (assets > debt) {
+            _profit = assets - debt;
             uint256 _wantBal = balanceOfWant();
-            if (_profit.add(_debtPayment) > _wantBal) {
+            if (_profit + _debtPayment > _wantBal) {
                 // this should only be hit following donations to strategy
                 liquidateAllPositions();
             }
         }
         // if assets are less than debt, we are in trouble
         else {
-            _loss = debt.sub(assets);
+            _loss = debt - assets;
         }
-
-        // we're done harvesting, so reset our trigger if we used it
-        forceHarvestTriggerOnce = false;
     }
 
     function prepareMigration(address _newStrategy) internal override {
@@ -423,17 +402,15 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
     // Sells VELO for USDC
     function _sell(uint256 _veloAmount) internal {      
-        if (_veloAmount > 1e17) {
-            IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
-                _veloAmount, // amountIn
-                0, // amountOutMin
-                address(velo), // tokenFrom
-                address(usdc), // tokenTo
-                false, // stable
-                address(this), // to
-                block.timestamp // deadline
-            );
-        }
+        IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
+            _veloAmount, // amountIn
+            0, // amountOutMin
+            address(velo), // tokenFrom
+            address(usdc), // tokenTo
+            false, // stable
+            address(this), // to
+            block.timestamp // deadline
+        );
     }
 
     // Sells USDC for OTHER
@@ -453,7 +430,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     function _scaleDecimals(uint256 _amount, ERC20 _fromToken, ERC20 _toToken) internal view returns (uint256 _scaled){
         uint256 decFrom = _fromToken.decimals();
         uint256 decTo = _toToken.decimals();
-        return decTo > decFrom ? _amount.div(10 ** (decTo.sub(decFrom))) : _amount.mul(10 ** (decFrom.sub(decTo)));
+        return decTo > decFrom ? _amount / 10 ** (decTo - decFrom) : _amount * 10 ** (decFrom - decTo);
 }
 
     /* ========== KEEP3RS ========== */
@@ -471,7 +448,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         StrategyParams memory params = vault.strategies(address(this));
         // harvest no matter what once we reach our maxDelay
-        if (block.timestamp.sub(params.lastReport) > maxReportDelay) {
+        if (block.timestamp - params.lastReport > maxReportDelay) {
             return true;
         }
 
@@ -486,7 +463,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         }
 
         // harvest if we hit our minDelay, but only if our gas price is acceptable
-        if (block.timestamp.sub(params.lastReport) > minReportDelay) {
+        if (block.timestamp - params.lastReport > minReportDelay) {
             return true;
         }
 
@@ -506,23 +483,4 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         override
         returns (uint256)
     {}
-
-    // check if the current baseFee is below our external target
-    function isBaseFeeAcceptable() internal view returns (bool) {
-        return
-            IBaseFee(0xbf4A735F123A9666574Ff32158ce2F7b7027De9A)
-                .isCurrentBaseFeeAcceptable();
-    }
-
-    /* ========== SETTERS ========== */
-
-    // These functions are useful for setting parameters of the strategy that may need to be adjusted.
-
-    ///@notice Credit threshold is in want token, and will trigger a harvest if strategy credit is above this amount.
-    function setCreditThreshold(uint256 _creditThreshold)
-        external
-        onlyVaultManagers
-    {
-        creditThreshold = _creditThreshold;
-    }
 }
