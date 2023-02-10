@@ -130,7 +130,9 @@ abstract contract StrategyVeloBase is BaseStrategy {
             }
             uint256 _withdrawnBal = balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
-            _loss = _amountNeeded - _liquidatedAmount;
+            unchecked {
+                _loss = _amountNeeded - _liquidatedAmount;
+            }
         } else {
             // we have enough balance to cover the liquidation available
             return (_amountNeeded, 0);
@@ -161,9 +163,6 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     // these will likely change across different wants.
 
     address public other; // address of the other (non-usdc) token in the stable pool
-    
-    IVelodromeRouter internal constant velousdc =
-        IVelodromeRouter(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // velodrome pool to sell our velo for usdc
 
     // we use these to deposit to our velodrome pool
     IERC20 internal constant usdc =
@@ -287,7 +286,6 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         // these are our standard approvals. want = Velodrome pool token
         want.approve(address(gauge), type(uint256).max);
-        velo.approve(address(velousdc), type(uint256).max);
 
         // these are our approvals and path specific to this contract
         usdc.approve(address(velodromeRouter), type(uint256).max);
@@ -379,7 +377,9 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         // if assets are greater than debt, things are working great!
         if (assets > debt) {
-            _profit = assets - debt;
+            unchecked {
+                _profit = assets - debt;
+            }
             uint256 _wantBal = balanceOfWant();
             if (_profit + _debtPayment > _wantBal) {
                 // this should only be hit following donations to strategy
@@ -388,7 +388,9 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         }
         // if assets are less than debt, we are in trouble
         else {
-            _loss = debt - assets;
+            unchecked {
+                _loss = debt - assets;
+            }
         }
     }
 
