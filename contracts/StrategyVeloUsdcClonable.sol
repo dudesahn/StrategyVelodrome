@@ -75,7 +75,7 @@ abstract contract StrategyVeloBase is BaseStrategy {
     IERC20 internal constant velo =
         IERC20(0x3c8B650257cFb5f272f799F5e2b4e65093a11a05);
 
-    address[] public onlyVelo;
+    address[] public rewardsTokens;
 
     string internal stratName;
 
@@ -292,7 +292,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         velo.approve(address(velodromeRouter), type(uint256).max);
         IERC20(other).approve(address(velodromeRouter), type(uint256).max);
 
-        onlyVelo.push(address(velo));
+        rewardsTokens.push(address(velo));
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -311,7 +311,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         // if we have anything in the gauge, then harvest VELO from the gauge
         if (_stakedBal > 0) {
             // claim our velo
-            IGauge(gauge).getReward(address(this), onlyVelo);
+            IGauge(gauge).getReward(address(this), rewardsTokens);
             _veloBalance = velo.balanceOf(address(this));
         }
         // if we have any VELO, then sell it for USDC
@@ -402,7 +402,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         velo.safeTransfer(_newStrategy, velo.balanceOf(address(this)));
     }
 
-    // Sells VELO for USDC
+    // sells VELO for USDC
     function _sell(uint256 _veloAmount) internal {      
         IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
             _veloAmount, // amountIn
@@ -415,7 +415,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         );
     }
 
-    // Sells USDC for OTHER
+    // sells USDC for OTHER
     function _sellusdc(uint256 _usdcAmount) internal {      
         IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
             _usdcAmount, // amountIn
@@ -428,12 +428,18 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         );
     }
 
-
+    // usdc only has six decimals so we normally need to scale
     function _scaleDecimals(uint256 _amount, ERC20 _fromToken, ERC20 _toToken) internal view returns (uint256 _scaled){
         uint256 decFrom = _fromToken.decimals();
         uint256 decTo = _toToken.decimals();
         return decTo > decFrom ? _amount / 10 ** (decTo - decFrom) : _amount * 10 ** (decFrom - decTo);
-}
+    }
+
+    // Use to add or update rewards
+    // VELO plus any others that may have been added to the gauge
+    function updateRewardsTokens(address[] memory _rewards) external onlyVaultManagers {
+        rewardsTokens = _rewards;
+    }
 
     /* ========== KEEP3RS ========== */
     // use this to determine when to harvest
@@ -443,7 +449,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         override
         returns (bool)
     {
-        // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
+        // should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
         if (!isActive()) {
             return false;
         }
