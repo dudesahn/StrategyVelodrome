@@ -528,7 +528,8 @@ def test_odds_and_ends_update_rewards(
     is_slippery,
     no_profit,
     velo,
-    usdc
+    usdc,
+    dai
 ):
     ## deposit to the vault after approving
     strategy.updateRewardsTokens([velo, usdc], {"from": gov})
@@ -536,4 +537,7 @@ def test_odds_and_ends_update_rewards(
     print('rewards1Post: ', strategy.rewardsTokens(1))
     assert strategy.rewardsTokens(0) == velo
     assert strategy.rewardsTokens(1) == usdc
+    strategy.harvest({"from": gov})
+    strategy.updateRewardsTokens([velo, dai], {"from": gov})
+    strategy.harvest({"from": gov})
     

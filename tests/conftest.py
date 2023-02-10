@@ -338,6 +338,10 @@ if chain_used == 10:  # optimism
     @pytest.fixture(scope="session")
     def other():	
         yield Contract("0x8c6f28f2F1A3C87F0f938b96d27520d9751ec8d9") # susd
+    
+    @pytest.fixture(scope="session")
+    def dai():
+        yield Contract("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1")
 
     @pytest.fixture(scope="session")
     def other_addr(accounts):	
