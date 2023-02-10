@@ -514,3 +514,26 @@ def test_odds_and_ends_no_profit(
         )
     else:
         assert token.balanceOf(whale) >= startingWhale
+
+
+# this test makes sure we can still harvest without any profit and not revert
+def test_odds_and_ends_update_rewards(
+    gov,
+    token,
+    vault,
+    whale,
+    strategy,
+    chain,
+    amount,
+    is_slippery,
+    no_profit,
+    velo,
+    usdc
+):
+    ## deposit to the vault after approving
+    strategy.updateRewardsTokens([velo, usdc], {"from": gov})
+    print('rewards0Post: ', strategy.rewardsTokens(0))
+    print('rewards1Post: ', strategy.rewardsTokens(1))
+    assert strategy.rewardsTokens(0) == velo
+    assert strategy.rewardsTokens(1) == usdc
+    
