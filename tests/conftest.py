@@ -370,7 +370,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def keeper(accounts):
-        yield accounts.at("0xBedf3Cf16ba1FcE6c3B751903Cf77E51d51E05b8", force=True) # not updated for optimism
+        yield accounts.at("0xD222297173C67f4967FFa61efE860047D6460780", force=True) # not updated for optimism
 
     @pytest.fixture(scope="session")
     def rewards(accounts):
@@ -443,7 +443,7 @@ if chain_used == 10:  # optimism
         # do slightly different if vault is existing or not
         if vault_address == ZERO_ADDRESS:
             vault.addStrategy(
-                strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov}
+                strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov}
             )
             print("New Vault, Velodrome Strategy")
             chain.sleep(1)
@@ -453,7 +453,7 @@ if chain_used == 10:  # optimism
                 other_strat = Contract(vault.withdrawalQueue(0))
                 vault.updateStrategyDebtRatio(other_strat, 5000, {"from": gov})
                 vault.addStrategy(
-                    strategy, 5000, 0, 2 ** 256 - 1, 1_000, {"from": gov}
+                    strategy, 5000, 0, 2 ** 256 - 1, 0, {"from": gov}
                 )
 
                 # reorder so curve first, convex second

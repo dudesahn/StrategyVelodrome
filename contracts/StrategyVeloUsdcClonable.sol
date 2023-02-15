@@ -47,10 +47,6 @@ interface IGauge {
         uint amount
     ) external;
 
-    function derivedBalance(
-        address account
-    ) external view returns (uint);
-
     function getReward(
         address account,
         address[] memory tokens
