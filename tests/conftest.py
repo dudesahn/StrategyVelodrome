@@ -60,6 +60,17 @@ def whale(accounts, amount, token):
         )
     yield whale
 
+@pytest.fixture(scope="session")
+def whale_dola(accounts, amount, token_dola):
+    # Totally in it for the tech
+    # Update this with a large holder of your want token (the largest EOA holder of LP)
+    # MIM 0xe896e539e557BC751860a7763C8dD589aF1698Ce, FRAX 0x839Bb033738510AA6B4f78Af20f066bdC824B189
+    whale_dola = accounts.at("0xAFD2c84b9d1cd50E7E18a55e419749A6c9055E1F", force=True)
+    if token_dola.balanceOf(whale_dola) < 2 * amount:
+        raise ValueError(
+            "Our whale needs more funds. Find another whale or reduce your amount variable."
+        )
+    yield whale_dola
 
 # use this if your vault is already deployed
 @pytest.fixture(scope="session")
@@ -312,11 +323,31 @@ if chain_used == 10:  # optimism
     @pytest.fixture(scope="session")	
     def token():
         yield Contract("0xd16232ad60188B68076a235c65d692090caba155")
+    
+    # our velodrome dola lp token
+    @pytest.fixture(scope="session")	
+    def token_dola():
+        yield Contract("0x6C5019D345Ec05004A7E7B0623A91a0D9B8D590d")
+    
+    # our velodrome mai lp token
+    @pytest.fixture(scope="session")	
+    def token_mai():
+        yield Contract("0xd62C9D8a3D4fd98b27CaaEfE3571782a3aF0a737")
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
     def gauge():	
         yield Contract("0xb03f52D2DB3e758DD49982Defd6AeEFEa9454e80") #USDC/sUSD gauge
+    
+    # gauge for the velodrome pool token
+    @pytest.fixture(scope="session")	
+    def gauge_dola():	
+        yield Contract("0xAFD2c84b9d1cd50E7E18a55e419749A6c9055E1F") #USDC/DOLA gauge
+    
+    # gauge for the velodrome pool token
+    @pytest.fixture(scope="session")	
+    def gauge_mai():	
+        yield Contract("0xDF479E13E71ce207CE1e58D6f342c039c3D90b7D") #USDC/DOLA gauge
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
@@ -326,6 +357,14 @@ if chain_used == 10:  # optimism
     @pytest.fixture(scope="session")
     def pool():	
         yield Contract("0xd16232ad60188B68076a235c65d692090caba155") # same as token
+
+    @pytest.fixture(scope="session")
+    def pool_dola():	
+        yield Contract("0x6C5019D345Ec05004A7E7B0623A91a0D9B8D590d") # same as token
+
+    @pytest.fixture(scope="session")
+    def pool_mai():	
+        yield Contract("0xd62C9D8a3D4fd98b27CaaEfE3571782a3aF0a737") # same as token
 
     @pytest.fixture(scope="session")
     def pool_addr(accounts):	
@@ -338,7 +377,15 @@ if chain_used == 10:  # optimism
     @pytest.fixture(scope="session")
     def other():	
         yield Contract("0x8c6f28f2F1A3C87F0f938b96d27520d9751ec8d9") # susd
+
+    @pytest.fixture(scope="session")
+    def other_dola():	
+        yield Contract("0x8aE125E8653821E851F12A49F7765db9a9ce7384") # dola
     
+    @pytest.fixture(scope="session")
+    def other_mai():	
+        yield Contract("0xdFA46478F9e5EA86d57387849598dbFB2e964b02") # mai
+
     @pytest.fixture(scope="session")
     def dai():
         yield Contract("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1")
@@ -394,6 +441,34 @@ if chain_used == 10:  # optimism
             Vault = pm(config["dependencies"][0]).Vault
             vault = guardian.deploy(Vault)
             vault.initialize(token, gov, rewards, "", "", guardian)
+            vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
+            vault.setManagement(management, {"from": gov})
+            chain.sleep(1)
+            chain.mine(1)
+        else:
+            vault = Contract(vault_address)
+        yield vault
+
+    @pytest.fixture(scope="module")
+    def vault_dola(pm, gov, rewards, guardian, management, token_dola, chain, vault_address):
+        if vault_address == ZERO_ADDRESS:
+            Vault = pm(config["dependencies"][0]).Vault
+            vault_dola = guardian.deploy(Vault)
+            vault_dola.initialize(token_dola, gov, rewards, "", "", guardian)
+            vault_dola.setDepositLimit(2 ** 256 - 1, {"from": gov})
+            vault_dola.setManagement(management, {"from": gov})
+            chain.sleep(1)
+            chain.mine(1)
+        else:
+            vault_dola = Contract(vault_address)
+        yield vault_dola
+    
+    @pytest.fixture(scope="module")
+    def vault_mai(pm, gov, rewards, guardian, management, token_mai, chain, vault_address):
+        if vault_address == ZERO_ADDRESS:
+            Vault = pm(config["dependencies"][0]).Vault
+            vault = guardian.deploy(Vault)
+            vault.initialize(token_mai, gov, rewards, "", "", guardian)
             vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
             vault.setManagement(management, {"from": gov})
             chain.sleep(1)
