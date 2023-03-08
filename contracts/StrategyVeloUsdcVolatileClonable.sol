@@ -31,6 +31,12 @@ interface IVelodromeRouter {
         address to,
         uint deadline
     ) external returns (uint[] memory amounts);
+
+    function getAmountOut(
+        uint amountIn,
+        address tokenIn,
+        address tokenOut
+    ) external view returns (uint amount, bool stable);
 }
 
 interface IGauge {
@@ -153,16 +159,19 @@ abstract contract StrategyVeloBase is BaseStrategy {
     {}
 }
 
-contract StrategyVeloUsdcClonable is StrategyVeloBase {
+contract StrategyVeloUsdcVolatileClonable is StrategyVeloBase {
     using SafeERC20 for IERC20;
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
-    address public other; // address of the other (non-usdc) token in the stable pool
+    address public other; // address of the other (non-usdc) token in the volatile pool
 
     // we use these to deposit to our velodrome pool
     IERC20 internal constant usdc =
         IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
+    
+    uint256 public maxSlippageVeloUsdc;
+    uint256 public maxSlippageUsdcOther;
 
     // check for cloning
     bool internal isOriginal = true;
@@ -185,7 +194,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneVeloUsdc(
+    function cloneVeloUsdcVolatile(
         address _vault,
         address _strategist,
         address _rewards,
@@ -218,7 +227,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyVeloUsdcClonable(newStrategy).initialize(
+        StrategyVeloUsdcVolatileClonable(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
@@ -264,7 +273,9 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
         // You can set these parameters on deployment to whatever you want
         maxReportDelay = 28 days; // 28 days in seconds
         minReportDelay = 7 days; // 7 days in seconds
-        creditThreshold = 0.005 * 1e18; // $10,000 because gas is cheap
+        creditThreshold = 0.02 * 1e18;
+        maxSlippageVeloUsdc = 50; // 0.5% default
+        maxSlippageUsdcOther = 50; // 0.5% default
 
         // set our velodrome gauge contract
         gauge = address(_gauge);
@@ -329,7 +340,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
             uint256 _otherBScaled = _scaleDecimals(_otherB, ERC20(_usdc_addr), ERC20(other));
 
             // determine how much usdc to sell for other for balanced add liquidity
-            uint256 _usdcToSell = _usdcBalance * _otherBScaled / (_usdcB + _otherBScaled);
+            uint256 _usdcToSell = _usdcBalance / 2;
 
             if (_usdcToSell > 10e6) {
                 // swap usdc for other
@@ -346,7 +357,7 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
                 IVelodromeRouter(velodromeRouter).addLiquidity(
                     address(usdc), // tokenA
                     address(other), // tokenB
-                    true, // stable
+                    false, // stable
                     _usdcBalance, // amountADesired
                     _otherBalance, // amountBDesired
                     _usdc98, // amountAMin
@@ -400,9 +411,16 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
     // sells VELO for USDC
     function _sell(uint256 _veloAmount) internal {      
+        (uint256 _expectedOut,) = IVelodromeRouter(velodromeRouter).getAmountOut(
+                _veloAmount, // amountIn
+                address(velo), // tokenIn
+                address(usdc) // tokenOut
+            );
+            uint256 _amountOutMin = _expectedOut * (10_000 - maxSlippageVeloUsdc) / 10_000;
+        
         IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
             _veloAmount, // amountIn
-            0, // amountOutMin
+            _amountOutMin, // amountOutMin
             address(velo), // tokenFrom
             address(usdc), // tokenTo
             false, // stable
@@ -412,13 +430,20 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
     }
 
     // sells USDC for OTHER
-    function _sellusdc(uint256 _usdcAmount) internal {      
+    function _sellusdc(uint256 _usdcAmount) internal {   
+        (uint256 _expectedOut,) = IVelodromeRouter(velodromeRouter).getAmountOut(
+                _usdcAmount, // amountIn
+                address(usdc), // tokenIn
+                address(other) // tokenOut
+            );
+            uint256 _amountOutMin = _expectedOut * (10_000 - maxSlippageUsdcOther) / 10_000;
+
         IVelodromeRouter(velodromeRouter).swapExactTokensForTokensSimple(
             _usdcAmount, // amountIn
-            0, // amountOutMin
+            _amountOutMin, // amountOutMin
             address(usdc), // tokenFrom
             address(other), // tokenTo
-            true, // stable
+            false, // stable
             address(this), // to
             block.timestamp // deadline
         );
@@ -478,6 +503,13 @@ contract StrategyVeloUsdcClonable is StrategyVeloBase {
 
         // otherwise, we don't harvest
         return false;
+    }
+
+    function setMaxSlippages(uint256 _maxSlippageVeloUsdc, uint256 _maxSlippageUsdcOther) external onlyVaultManagers {
+        require(_maxSlippageVeloUsdc <= 10_000, "SLIPPAGE_LIMIT_EXCEEDED");
+        require(_maxSlippageUsdcOther <= 10_000, "SLIPPAGE_LIMIT_EXCEEDED");
+        maxSlippageVeloUsdc = _maxSlippageVeloUsdc;
+        maxSlippageUsdcOther = _maxSlippageUsdcOther;
     }
 
     // convert our keeper's eth cost into want, we don't need this anymore since we don't use baseStrategy harvestTrigger

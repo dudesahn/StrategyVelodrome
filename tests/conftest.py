@@ -53,7 +53,7 @@ def whale(accounts, amount, token):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     # MIM 0xe896e539e557BC751860a7763C8dD589aF1698Ce, FRAX 0x839Bb033738510AA6B4f78Af20f066bdC824B189
-    whale = accounts.at("0xb03f52d2db3e758dd49982defd6aeefea9454e80", force=True)
+    whale = accounts.at("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f", force=True) # usdc-snx gauge
     if token.balanceOf(whale) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
@@ -97,8 +97,8 @@ def strategy_name():
 
 # this is the name of our strategy in the .sol file
 @pytest.fixture(scope="session")
-def contract_name(StrategyVeloUsdcClonable):
-    contract_name = StrategyVeloUsdcClonable
+def contract_name(StrategyVeloUsdcVolatileClonable):
+    contract_name = StrategyVeloUsdcVolatileClonable
     yield contract_name
 
 
@@ -319,10 +319,10 @@ if chain_used == 10:  # optimism
     def farmed():
         yield Contract("0x3c8B650257cFb5f272f799F5e2b4e65093a11a05")
 
-    # our velodrome lp token
+    # our velodrome usdc-snx lp token
     @pytest.fixture(scope="session")	
     def token():
-        yield Contract("0xd16232ad60188B68076a235c65d692090caba155")
+        yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D")
     
     # our velodrome dola lp token
     @pytest.fixture(scope="session")	
@@ -337,7 +337,7 @@ if chain_used == 10:  # optimism
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
     def gauge():	
-        yield Contract("0xb03f52D2DB3e758DD49982Defd6AeEFEa9454e80") #USDC/sUSD gauge
+        yield Contract("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f") #USDC/SNX gauge
     
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
@@ -352,11 +352,11 @@ if chain_used == 10:  # optimism
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
     def gauge_addr(accounts):	
-        yield accounts.at("0xb03f52D2DB3e758DD49982Defd6AeEFEa9454e80", force=True) #USDC/sUSD gauge
+        yield accounts.at("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f", force=True) #USDC/snx gauge
     
     @pytest.fixture(scope="session")
     def pool():	
-        yield Contract("0xd16232ad60188B68076a235c65d692090caba155") # same as token
+        yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D") # same as token
 
     @pytest.fixture(scope="session")
     def pool_dola():	
@@ -368,7 +368,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def pool_addr(accounts):	
-        yield accounts.at("0xd16232ad60188B68076a235c65d692090caba155", force=True) # same as token
+        yield accounts.at("0x9056EB7Ca982a5Dd65A584189994e6a27318067D", force=True) # same as token
 
     @pytest.fixture(scope="session")
     def usdc():	
@@ -376,7 +376,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def other():	
-        yield Contract("0x8c6f28f2F1A3C87F0f938b96d27520d9751ec8d9") # susd
+        yield Contract("0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4") # snx
 
     @pytest.fixture(scope="session")
     def other_dola():	
@@ -392,7 +392,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def other_addr(accounts):	
-        yield accounts.at("0x8c6f28f2F1A3C87F0f938b96d27520d9751ec8d9", force=True) # susd
+        yield accounts.at("0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4", force=True) # snx
 
     @pytest.fixture(scope="session")	
     def gasOracle():	
@@ -408,7 +408,7 @@ if chain_used == 10:  # optimism
     @pytest.fixture(scope="session")
     def strategist_ms(accounts):
         # like governance, but better
-        yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
+        yield accounts.at("0xea3a15df68fCdBE44Fdb0DB675B2b3A14a148b26", force=True)
 
     # oracle gov on optimism is currently set to an eoa
     @pytest.fixture(scope="session")
@@ -421,7 +421,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def rewards(accounts):
-        yield accounts.at("0x8Ef63b525fceF7f8662D98F77f5C9A86ae7dFE09", force=True)
+        yield accounts.at("0x84654e35E504452769757AAe5a8C7C6599cBf954", force=True)
 
     @pytest.fixture(scope="session")
     def guardian(accounts):

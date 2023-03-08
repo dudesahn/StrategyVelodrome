@@ -35,7 +35,7 @@ def test_simple_harvest(
 
     # harvest, store asset amount
     tx = strategy.harvest({"from": gov})
-    print("Harvest info:", tx.events["Harvested"])
+    print("Harvest info 1:", tx.events["Harvested"])
     chain.sleep(1)
     chain.mine(1)
     old_assets = vault.totalAssets()
@@ -58,7 +58,7 @@ def test_simple_harvest(
     # harvest, store new asset amount
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
-    print("Harvest info:", tx.events["Harvested"])
+    print("Harvest info 2:", tx.events["Harvested"])
     chain.sleep(1)
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
@@ -82,7 +82,7 @@ def test_simple_harvest(
             / (strategy.estimatedTotalAssets())
         ),
     )
-    print("Harvest info:", tx.events["Harvested"])
+    print("Harvest info 3:", tx.events["Harvested"])
 
     # simulate profits
     chain.sleep(sleep_time)
@@ -93,7 +93,7 @@ def test_simple_harvest(
     # harvest, store new asset amount
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
-    print("Harvest info:", tx.events["Harvested"])
+    print("Harvest info 4:", tx.events["Harvested"])
     chain.sleep(1)
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
@@ -117,7 +117,7 @@ def test_simple_harvest(
             / (strategy.estimatedTotalAssets())
         ),
     )
-    print("Harvest info:", tx.events["Harvested"])
+    print("Harvest info 5:", tx.events["Harvested"])
 
     if not no_profit:
         assert tx.events["Harvested"]["profit"] > 0
@@ -135,7 +135,7 @@ def test_simple_harvest(
         chain.mine(1)
         strategy.setDoHealthCheck(False, {"from": gov})
         tx = strategy.harvest({"from": gov})
-        print("Harvest info:", tx.events["Harvested"])
+        print("Harvest info 6:", tx.events["Harvested"])
         chain.sleep(1)
         chain.mine(1)
         new_assets = vault.totalAssets()
