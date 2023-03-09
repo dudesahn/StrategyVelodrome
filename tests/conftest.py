@@ -61,16 +61,16 @@ def whale(accounts, amount, token):
     yield whale
 
 @pytest.fixture(scope="session")
-def whale_dola(accounts, amount, token_dola):
+def whale_sonne(accounts, amount, token_sonne):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     # MIM 0xe896e539e557BC751860a7763C8dD589aF1698Ce, FRAX 0x839Bb033738510AA6B4f78Af20f066bdC824B189
-    whale_dola = accounts.at("0xAFD2c84b9d1cd50E7E18a55e419749A6c9055E1F", force=True)
-    if token_dola.balanceOf(whale_dola) < 2 * amount:
+    whale_sonne = accounts.at("0x3786d4419D6B4A902607cEb2BB319Bb336735Df8", force=True)
+    if token_sonne.balanceOf(whale_sonne) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
         )
-    yield whale_dola
+    yield whale_sonne
 
 # use this if your vault is already deployed
 @pytest.fixture(scope="session")
@@ -324,15 +324,15 @@ if chain_used == 10:  # optimism
     def token():
         yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D")
     
-    # our velodrome dola lp token
+    # our velodrome sonne lp token
     @pytest.fixture(scope="session")	
-    def token_dola():
-        yield Contract("0x6C5019D345Ec05004A7E7B0623A91a0D9B8D590d")
+    def token_sonne():
+        yield Contract("0xc899C4D73ED8dF2eAd1543AB915888B0Bf7d57a2")
     
-    # our velodrome mai lp token
+    # our velodrome weth lp token
     @pytest.fixture(scope="session")	
-    def token_mai():
-        yield Contract("0xd62C9D8a3D4fd98b27CaaEfE3571782a3aF0a737")
+    def token_weth():
+        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50")
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
@@ -341,13 +341,13 @@ if chain_used == 10:  # optimism
     
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
-    def gauge_dola():	
-        yield Contract("0xAFD2c84b9d1cd50E7E18a55e419749A6c9055E1F") #USDC/DOLA gauge
+    def gauge_sonne():	
+        yield Contract("0x3786d4419D6B4A902607cEb2BB319Bb336735Df8") #USDC/SONNE gauge
     
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
-    def gauge_mai():	
-        yield Contract("0xDF479E13E71ce207CE1e58D6f342c039c3D90b7D") #USDC/DOLA gauge
+    def gauge_weth():	
+        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50") #USDC/WETH gauge
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
@@ -359,12 +359,12 @@ if chain_used == 10:  # optimism
         yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D") # same as token
 
     @pytest.fixture(scope="session")
-    def pool_dola():	
-        yield Contract("0x6C5019D345Ec05004A7E7B0623A91a0D9B8D590d") # same as token
+    def pool_sonne():	
+        yield Contract("0xc899C4D73ED8dF2eAd1543AB915888B0Bf7d57a2") # same as token
 
     @pytest.fixture(scope="session")
-    def pool_mai():	
-        yield Contract("0xd62C9D8a3D4fd98b27CaaEfE3571782a3aF0a737") # same as token
+    def pool_weth():	
+        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50") # same as token
 
     @pytest.fixture(scope="session")
     def pool_addr(accounts):	
@@ -379,12 +379,12 @@ if chain_used == 10:  # optimism
         yield Contract("0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4") # snx
 
     @pytest.fixture(scope="session")
-    def other_dola():	
-        yield Contract("0x8aE125E8653821E851F12A49F7765db9a9ce7384") # dola
+    def other_sonne():	
+        yield Contract("0x1DB2466d9F5e10D7090E7152B68d62703a2245F0") # sonne
     
     @pytest.fixture(scope="session")
-    def other_mai():	
-        yield Contract("0xdFA46478F9e5EA86d57387849598dbFB2e964b02") # mai
+    def other_weth():	
+        yield Contract("0x4200000000000000000000000000000000000006") # weth
 
     @pytest.fixture(scope="session")
     def dai():
@@ -450,25 +450,25 @@ if chain_used == 10:  # optimism
         yield vault
 
     @pytest.fixture(scope="module")
-    def vault_dola(pm, gov, rewards, guardian, management, token_dola, chain, vault_address):
+    def vault_sonne(pm, gov, rewards, guardian, management, token_sonne, chain, vault_address):
         if vault_address == ZERO_ADDRESS:
             Vault = pm(config["dependencies"][0]).Vault
-            vault_dola = guardian.deploy(Vault)
-            vault_dola.initialize(token_dola, gov, rewards, "", "", guardian)
-            vault_dola.setDepositLimit(2 ** 256 - 1, {"from": gov})
-            vault_dola.setManagement(management, {"from": gov})
+            vault_sonne = guardian.deploy(Vault)
+            vault_sonne.initialize(token_sonne, gov, rewards, "", "", guardian)
+            vault_sonne.setDepositLimit(2 ** 256 - 1, {"from": gov})
+            vault_sonne.setManagement(management, {"from": gov})
             chain.sleep(1)
             chain.mine(1)
         else:
-            vault_dola = Contract(vault_address)
-        yield vault_dola
+            vault_sonne = Contract(vault_address)
+        yield vault_sonne
     
     @pytest.fixture(scope="module")
-    def vault_mai(pm, gov, rewards, guardian, management, token_mai, chain, vault_address):
+    def vault_weth(pm, gov, rewards, guardian, management, token_weth, chain, vault_address):
         if vault_address == ZERO_ADDRESS:
             Vault = pm(config["dependencies"][0]).Vault
             vault = guardian.deploy(Vault)
-            vault.initialize(token_mai, gov, rewards, "", "", guardian)
+            vault.initialize(token_weth, gov, rewards, "", "", guardian)
             vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
             vault.setManagement(management, {"from": gov})
             chain.sleep(1)

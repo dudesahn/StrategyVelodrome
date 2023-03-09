@@ -49,9 +49,9 @@ def test_simple_harvest(
     stakingBeforeHarvest < strategy.stakedBalance()
     staked1 = strategy.stakedBalance()
 
-    # try an extra harvest to get the velo pumping ???
-    tx = strategy.harvest({"from": gov})
-    print("Harvest info 1a:", tx.events["Harvested"])
+    # # try an extra harvest to get the velo pumping ???
+    # tx = strategy.harvest({"from": gov})
+    # print("Harvest info 1a:", tx.events["Harvested"])
 
     # simulate profits
     chain.sleep(sleep_time)

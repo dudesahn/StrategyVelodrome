@@ -6,13 +6,13 @@ import math
 def test_cloning(
     gov,
     token,
-    token_dola,
+    token_sonne,
     vault,
-    vault_dola,
-    vault_mai,
+    vault_sonne,
+    vault_weth,
     strategist,
     whale,
-    whale_dola,
+    whale_sonne,
     strategy,
     keeper,
     rewards,
@@ -20,11 +20,11 @@ def test_cloning(
     contract_name,
     amount,
     pool,
-    pool_dola,
-    pool_mai,
+    pool_sonne,
+    pool_weth,
     gauge,
-    gauge_dola,
-    gauge_mai,
+    gauge_sonne,
+    gauge_weth,
     strategy_name,
     sleep_time,
     tests_using_tenderly,
@@ -34,8 +34,8 @@ def test_cloning(
     rewards_token,
     is_clonable,
     other,
-    other_dola,
-    other_mai,
+    other_sonne,
+    other_weth,
     healthCheck
 ):
 
@@ -46,14 +46,14 @@ def test_cloning(
     # tenderly doesn't work for "with brownie.reverts"
     if tests_using_tenderly:
         ## clone our strategy
-        tx = strategy.cloneVeloUsdc(
-            vault_dola,
+        tx = strategy.cloneVeloUsdcVolatile(
+            vault_sonne,
             strategist,
             rewards,
             keeper,
-            gauge_dola,
-            pool_dola,
-            other_dola,
+            gauge_sonne,
+            pool_sonne,
+            other_sonne,
             healthCheck,
             strategy_name,
             {"from": gov},
@@ -76,14 +76,14 @@ def test_cloning(
             )
 
         ## clone our strategy
-        tx = strategy.cloneVeloUsdc(
-            vault_dola,
+        tx = strategy.cloneVeloUsdcVolatile(
+            vault_sonne,
             strategist,
             rewards,
             keeper,
-            gauge_dola,
-            pool_dola,
-            other_dola,
+            gauge_sonne,
+            pool_sonne,
+            other_sonne,
             healthCheck,
             strategy_name,
             {"from": gov},
@@ -93,13 +93,13 @@ def test_cloning(
         # Shouldn't be able to call initialize again
         with brownie.reverts():
             newStrategy.initialize(
-                vault_dola,
+                vault_sonne,
                 strategist,
                 rewards,
                 keeper,
-                gauge_dola,
-                pool_dola,
-                other_dola,
+                gauge_sonne,
+                pool_sonne,
+                other_sonne,
                 healthCheck,
                 strategy_name,
                 {"from": gov},
@@ -107,14 +107,14 @@ def test_cloning(
 
         ## shouldn't be able to clone a clone
         with brownie.reverts():
-            newStrategy.cloneVeloUsdc(
-                vault_mai,
+            newStrategy.cloneVeloUsdcVolatile(
+                vault_weth,
                 strategist,
                 rewards,
                 keeper,
-                gauge_mai,
-                pool_mai,
-                other_mai,
+                gauge_weth,
+                pool_weth,
+                other_weth,
                 healthCheck,
                 strategy_name,
                 {"from": gov},
@@ -128,7 +128,7 @@ def test_cloning(
     # chain.sleep(1)
 
     # attach our new strategy
-    vault_dola.addStrategy(newStrategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
+    vault_sonne.addStrategy(newStrategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
 
     # if vault_address == ZERO_ADDRESS:
     #     assert vault.withdrawalQueue(1) == newStrategy
@@ -143,22 +143,22 @@ def test_cloning(
     # assert vault.strategies(strategy)["debtRatio"] == 0
 
     ## deposit to the vault after approving; this is basically just our simple_harvest test
-    before_pps = vault_dola.pricePerShare()
-    startingWhale = token_dola.balanceOf(whale_dola)
-    token_dola.approve(vault_dola, 2 ** 256 - 1, {"from": whale_dola})
-    vault_dola.deposit(amount, {"from": whale_dola})
+    before_pps = vault_sonne.pricePerShare()
+    startingWhale = token_sonne.balanceOf(whale_sonne)
+    token_sonne.approve(vault_sonne, 2 ** 256 - 1, {"from": whale_sonne})
+    vault_sonne.deposit(amount, {"from": whale_sonne})
 
     print('newStrategy.want(): ', newStrategy.want())
-    print('vault_dola.token(): ', vault_dola.token())
-    assert newStrategy.want() == pool_dola
-    assert vault_dola.token() == pool_dola
+    print('vault_sonne.token(): ', vault_sonne.token())
+    assert newStrategy.want() == pool_sonne
+    assert vault_sonne.token() == pool_sonne
 
     # harvest, store asset amount
     newStrategy.harvest({"from": gov})
     chain.sleep(1)
-    old_assets = vault_dola.totalAssets()
+    old_assets = vault_sonne.totalAssets()
     assert old_assets > 0
-    assert token_dola.balanceOf(newStrategy) == 0
+    assert token_sonne.balanceOf(newStrategy) == 0
     assert newStrategy.estimatedTotalAssets() > 0
     print("\nStarting Assets: ", old_assets / 1e18)
 
@@ -172,7 +172,7 @@ def test_cloning(
 
     # harvest after a day, store new asset amount
     newStrategy.harvest({"from": gov})
-    new_assets = vault_dola.totalAssets()
+    new_assets = vault_sonne.totalAssets()
 
     # we can't use strategyEstimated Assets because the profits are sent to the vault
     assert new_assets >= old_assets
@@ -192,12 +192,12 @@ def test_cloning(
     chain.mine(1)
 
     # withdraw and confirm we made money, or at least that we have about the same
-    vault_dola.withdraw({"from": whale_dola})
+    vault_sonne.withdraw({"from": whale_sonne})
     if is_slippery and no_profit:
         assert (
-            math.isclose(token_dola.balanceOf(whale_dola), startingWhale, abs_tol=10)
-            or token_dola.balanceOf(whale_dola) >= startingWhale
+            math.isclose(token_sonne.balanceOf(whale_sonne), startingWhale, abs_tol=10)
+            or token_sonne.balanceOf(whale_sonne) >= startingWhale
         )
     else:
-        assert token_dola.balanceOf(whale_dola) >= startingWhale
-    assert vault_dola.pricePerShare() >= before_pps
+        assert token_sonne.balanceOf(whale_sonne) >= startingWhale
+    assert vault_sonne.pricePerShare() >= before_pps
