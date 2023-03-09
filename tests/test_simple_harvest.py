@@ -49,12 +49,14 @@ def test_simple_harvest(
     stakingBeforeHarvest < strategy.stakedBalance()
     staked1 = strategy.stakedBalance()
 
+    # try an extra harvest to get the velo pumping ???
+    tx = strategy.harvest({"from": gov})
+    print("Harvest info 1a:", tx.events["Harvested"])
+
     # simulate profits
     chain.sleep(sleep_time)
     chain.mine(1)
-
-    print("earned: ", gauge.earned(velo, strategy) / 1e18)
-
+    print("\nearned: ", gauge.earned(velo, strategy) / 1e18)
     # harvest, store new asset amount
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
@@ -63,9 +65,8 @@ def test_simple_harvest(
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets
-    print("\nAssets after 1 day: ", new_assets / 1e18)
+    print("Assets after 1 day: ", new_assets / 1e18)
     print("gauge_deposit", gauge.balanceOf(strategy) / 1e18)
-    print("earned: ", gauge.earned(velo, strategy) / 1e18)
     print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
     staked2 = strategy.stakedBalance()
     print("stakingafterharvest2: ", staked2 / 1e18)
@@ -73,34 +74,29 @@ def test_simple_harvest(
     print("other bal: ", other.balanceOf(strategy) / 1e18)
     print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
     print("vault token bal: ", token.balanceOf(vault) / 1e18)
-
     # Display estimated APR
     print(
-        "\nEstimated DAI APR: ",
+        "Estimated DAI APR: ",
         "{:.2%}".format(
             ((new_assets - old_assets) * (365 * 86400 / sleep_time))
             / (strategy.estimatedTotalAssets())
         ),
     )
-    print("Harvest info 3:", tx.events["Harvested"])
 
     # simulate profits
-    chain.sleep(sleep_time)
+    chain.sleep(sleep_time * 1)
     chain.mine(1)
-
-    print("earned: ", gauge.earned(velo, strategy) / 1e18)
-
+    print("\nearned: ", gauge.earned(velo, strategy) / 1e18)
     # harvest, store new asset amount
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
-    print("Harvest info 4:", tx.events["Harvested"])
+    print("Harvest info 3:", tx.events["Harvested"])
     chain.sleep(1)
-    new_assets = vault.totalAssets()
+    new_new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
-    assert new_assets >= old_assets
-    print("\nAssets after 1 day: ", new_assets / 1e18)
+    assert new_new_assets >= new_assets
+    print("Assets after 1 day: ", new_new_assets / 1e18)
     print("gauge_deposit", gauge.balanceOf(strategy) / 1e18)
-    print("earned: ", gauge.earned(velo, strategy) / 1e18)
     print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
     staked2 = strategy.stakedBalance()
     print("stakingafterharvest2: ", staked2 / 1e18)
@@ -108,16 +104,14 @@ def test_simple_harvest(
     print("other bal: ", other.balanceOf(strategy) / 1e18)
     print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
     print("vault token bal: ", token.balanceOf(vault) / 1e18)
-
     # Display estimated APR
     print(
-        "\nEstimated DAI APR: ",
+        "Estimated DAI APR: ",
         "{:.2%}".format(
-            ((new_assets - old_assets) * (365 * 86400 / (sleep_time * 2)))
+            ((new_new_assets - new_assets) * (365 * 86400 / (sleep_time * 1)))
             / (strategy.estimatedTotalAssets())
         ),
     )
-    print("Harvest info 5:", tx.events["Harvested"])
 
     if not no_profit:
         assert tx.events["Harvested"]["profit"] > 0
