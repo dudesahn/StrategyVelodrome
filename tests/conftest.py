@@ -44,7 +44,7 @@ chain_used = 10
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="session")
 def amount():
-    amount = 0.1e18
+    amount = 100e18
     yield amount
 
 
@@ -52,8 +52,7 @@ def amount():
 def whale(accounts, amount, token):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    # MIM 0xe896e539e557BC751860a7763C8dD589aF1698Ce, FRAX 0x839Bb033738510AA6B4f78Af20f066bdC824B189
-    whale = accounts.at("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f", force=True) # usdc-snx gauge
+    whale = accounts.at("0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44", force=True) # weth-reth gauge
     if token.balanceOf(whale) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
@@ -61,16 +60,15 @@ def whale(accounts, amount, token):
     yield whale
 
 @pytest.fixture(scope="session")
-def whale_sonne(accounts, amount, token_sonne):
+def whale_wsteth(accounts, amount, token_wsteth):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    # MIM 0xe896e539e557BC751860a7763C8dD589aF1698Ce, FRAX 0x839Bb033738510AA6B4f78Af20f066bdC824B189
-    whale_sonne = accounts.at("0x3786d4419D6B4A902607cEb2BB319Bb336735Df8", force=True)
-    if token_sonne.balanceOf(whale_sonne) < 2 * amount:
+    whale_wsteth = accounts.at("0x150dc0e12d473347BECd0f7352e9dAE6CD30d8aB", force=True)
+    if token_wsteth.balanceOf(whale_wsteth) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
         )
-    yield whale_sonne
+    yield whale_wsteth
 
 # use this if your vault is already deployed
 @pytest.fixture(scope="session")
@@ -97,8 +95,8 @@ def strategy_name():
 
 # this is the name of our strategy in the .sol file
 @pytest.fixture(scope="session")
-def contract_name(StrategyVeloUsdcVolatileClonable):
-    contract_name = StrategyVeloUsdcVolatileClonable
+def contract_name(StrategyVeloWethVolatileClonable):
+    contract_name = StrategyVeloWethVolatileClonable
     yield contract_name
 
 
@@ -319,72 +317,76 @@ if chain_used == 10:  # optimism
     def farmed():
         yield Contract("0x3c8B650257cFb5f272f799F5e2b4e65093a11a05")
 
-    # our velodrome usdc-snx lp token
+    # our velodrome weth/reth lp token
     @pytest.fixture(scope="session")	
     def token():
-        yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D")
+        yield Contract("0x985612ff2C9409174FedcFf23d4F4761AF124F88")
     
-    # our velodrome sonne lp token
+    # our velodrome wsteth lp token
     @pytest.fixture(scope="session")	
-    def token_sonne():
-        yield Contract("0xc899C4D73ED8dF2eAd1543AB915888B0Bf7d57a2")
+    def token_wsteth():
+        yield Contract("0xc6C1E8399C1c33a3f1959f2f77349D74a373345c")
     
-    # our velodrome weth lp token
+    # our velodrome kwenta lp token
     @pytest.fixture(scope="session")	
-    def token_weth():
-        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50")
+    def token_kwenta():
+        yield Contract("0xd65c1120DDF79F827b925C505949E02c5A0D6236")
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
     def gauge():	
-        yield Contract("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f") #USDC/SNX gauge
+        yield Contract("0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44") #weth/reth gauge
     
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
-    def gauge_sonne():	
-        yield Contract("0x3786d4419D6B4A902607cEb2BB319Bb336735Df8") #USDC/SONNE gauge
+    def gauge_wsteth():	
+        yield Contract("0x150dc0e12d473347BECd0f7352e9dAE6CD30d8aB") #weth/wsteth gauge
     
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
-    def gauge_weth():	
-        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50") #USDC/WETH gauge
+    def gauge_kwenta():	
+        yield Contract("0xDFc1eCf1Dcb82B1daeA91fdDA2023973447c4309") #weth/kwenta gauge
 
     # gauge for the velodrome pool token
     @pytest.fixture(scope="session")	
     def gauge_addr(accounts):	
-        yield accounts.at("0x099b3368eb5bbe6f67f14a791ecaef8bc1628a7f", force=True) #USDC/snx gauge
+        yield accounts.at("0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44", force=True) #weth/reth gauge
     
     @pytest.fixture(scope="session")
     def pool():	
-        yield Contract("0x9056EB7Ca982a5Dd65A584189994e6a27318067D") # same as token
+        yield Contract("0x985612ff2C9409174FedcFf23d4F4761AF124F88") # same as token
 
     @pytest.fixture(scope="session")
-    def pool_sonne():	
-        yield Contract("0xc899C4D73ED8dF2eAd1543AB915888B0Bf7d57a2") # same as token
+    def pool_wsteth():	
+        yield Contract("0xc6C1E8399C1c33a3f1959f2f77349D74a373345c") # same as token
 
     @pytest.fixture(scope="session")
-    def pool_weth():	
-        yield Contract("0x79c912FEF520be002c2B6e57EC4324e260f38E50") # same as token
+    def pool_kwenta():	
+        yield Contract("0xd65c1120DDF79F827b925C505949E02c5A0D6236") # same as token
 
     @pytest.fixture(scope="session")
     def pool_addr(accounts):	
-        yield accounts.at("0x9056EB7Ca982a5Dd65A584189994e6a27318067D", force=True) # same as token
+        yield accounts.at("0x985612ff2C9409174FedcFf23d4F4761AF124F88", force=True) # same as token
 
     @pytest.fixture(scope="session")
     def usdc():	
         yield Contract("0x7F5c764cBc14f9669B88837ca1490cCa17c31607") # usdc
 
     @pytest.fixture(scope="session")
-    def other():	
-        yield Contract("0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4") # snx
+    def weth():	
+        yield Contract("0x4200000000000000000000000000000000000006") # weth 
 
     @pytest.fixture(scope="session")
-    def other_sonne():	
-        yield Contract("0x1DB2466d9F5e10D7090E7152B68d62703a2245F0") # sonne
+    def other():	
+        yield Contract("0x9Bcef72be871e61ED4fBbc7630889beE758eb81D") # reth
+
+    @pytest.fixture(scope="session")
+    def other_wsteth():	
+        yield Contract("0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb") # wsteth
     
     @pytest.fixture(scope="session")
-    def other_weth():	
-        yield Contract("0x4200000000000000000000000000000000000006") # weth
+    def other_kwenta():	
+        yield Contract("0x920Cf626a271321C151D027030D5d08aF699456b") # kwenta
 
     @pytest.fixture(scope="session")
     def dai():
@@ -392,7 +394,7 @@ if chain_used == 10:  # optimism
 
     @pytest.fixture(scope="session")
     def other_addr(accounts):	
-        yield accounts.at("0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4", force=True) # snx
+        yield accounts.at("0x9Bcef72be871e61ED4fBbc7630889beE758eb81D", force=True) # snx
 
     @pytest.fixture(scope="session")	
     def gasOracle():	
@@ -450,25 +452,25 @@ if chain_used == 10:  # optimism
         yield vault
 
     @pytest.fixture(scope="module")
-    def vault_sonne(pm, gov, rewards, guardian, management, token_sonne, chain, vault_address):
+    def vault_wsteth(pm, gov, rewards, guardian, management, token_wsteth, chain, vault_address):
         if vault_address == ZERO_ADDRESS:
             Vault = pm(config["dependencies"][0]).Vault
-            vault_sonne = guardian.deploy(Vault)
-            vault_sonne.initialize(token_sonne, gov, rewards, "", "", guardian)
-            vault_sonne.setDepositLimit(2 ** 256 - 1, {"from": gov})
-            vault_sonne.setManagement(management, {"from": gov})
+            vault_wsteth = guardian.deploy(Vault)
+            vault_wsteth.initialize(token_wsteth, gov, rewards, "", "", guardian)
+            vault_wsteth.setDepositLimit(2 ** 256 - 1, {"from": gov})
+            vault_wsteth.setManagement(management, {"from": gov})
             chain.sleep(1)
             chain.mine(1)
         else:
-            vault_sonne = Contract(vault_address)
-        yield vault_sonne
+            vault_wsteth = Contract(vault_address)
+        yield vault_wsteth
     
     @pytest.fixture(scope="module")
-    def vault_weth(pm, gov, rewards, guardian, management, token_weth, chain, vault_address):
+    def vault_kwenta(pm, gov, rewards, guardian, management, token_kwenta, chain, vault_address):
         if vault_address == ZERO_ADDRESS:
             Vault = pm(config["dependencies"][0]).Vault
             vault = guardian.deploy(Vault)
-            vault.initialize(token_weth, gov, rewards, "", "", guardian)
+            vault.initialize(token_kwenta, gov, rewards, "", "", guardian)
             vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
             vault.setManagement(management, {"from": gov})
             chain.sleep(1)

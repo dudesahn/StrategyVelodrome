@@ -18,7 +18,7 @@ def test_simple_harvest(
     no_profit,
     velo,
     accounts,
-    usdc,
+    weth,
     other
 ):
     ## deposit to the vault after approving
@@ -70,7 +70,7 @@ def test_simple_harvest(
     print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
     staked2 = strategy.stakedBalance()
     print("stakingafterharvest2: ", staked2 / 1e18)
-    print("usdc bal: ", usdc.balanceOf(strategy) / 1e6)
+    print("weth bal: ", weth.balanceOf(strategy) / 1e18)
     print("other bal: ", other.balanceOf(strategy) / 1e18)
     print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
     print("vault token bal: ", token.balanceOf(vault) / 1e18)
@@ -82,6 +82,8 @@ def test_simple_harvest(
             / (strategy.estimatedTotalAssets())
         ),
     )
+    print("old_assets: ", old_assets)
+    print("new_assets: ", new_assets)
 
     # simulate profits
     chain.sleep(sleep_time * 1)
@@ -100,7 +102,7 @@ def test_simple_harvest(
     print("balanceofwant: ", strategy.balanceOfWant() / 1e18)
     staked2 = strategy.stakedBalance()
     print("stakingafterharvest2: ", staked2 / 1e18)
-    print("usdc bal: ", usdc.balanceOf(strategy) / 1e6)
+    print("weth bal: ", weth.balanceOf(strategy) / 1e18)
     print("other bal: ", other.balanceOf(strategy) / 1e18)
     print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
     print("vault token bal: ", token.balanceOf(vault) / 1e18)
@@ -112,6 +114,8 @@ def test_simple_harvest(
             / (strategy.estimatedTotalAssets())
         ),
     )
+    print("new_assets: ", new_assets)
+    print("new_new_assets: ", new_new_assets)
 
     if not no_profit:
         assert tx.events["Harvested"]["profit"] > 0
