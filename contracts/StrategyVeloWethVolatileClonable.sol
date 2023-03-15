@@ -159,12 +159,12 @@ abstract contract StrategyVeloBase is BaseStrategy {
     {}
 }
 
-contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
+contract StrategyVeloWethStableClonable is StrategyVeloBase {
     using SafeERC20 for IERC20;
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
-    address public other; // address of the other (non-weth) token in the volatile pool
+    address public other; // address of the other (non-weth) token in the stable pool
 
     // we use these to deposit to our velodrome pool
     IERC20 internal constant usdc =
@@ -199,7 +199,7 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneVeloWethVolatile(
+    function cloneVeloWethStable(
         address _vault,
         address _strategist,
         address _rewards,
@@ -232,7 +232,7 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyVeloWethVolatileClonable(newStrategy).initialize(
+        StrategyVeloWethStableClonable(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
@@ -343,7 +343,7 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
             uint256 _otherB = IERC20(other).balanceOf(pool);
 
             // determine how much usdc to sell for other for balanced add liquidity
-            uint256 _wethToSell = _wethBalance / 2;
+            uint256 _wethToSell = _wethBalance * _otherB / (_wethB + _otherB);
 
             if (_wethToSell > 0.01e18) {
                 // swap weth for other
@@ -360,7 +360,7 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
                 IVelodromeRouter(velodromeRouter).addLiquidity(
                     address(weth), // tokenA
                     address(other), // tokenB
-                    false, // stable
+                    true, // stable
                     _wethBalance, // amountADesired
                     _otherBalance, // amountBDesired
                     _weth98, // amountAMin
@@ -467,7 +467,7 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
             _amountOutMin, // amountOutMin
             address(weth), // tokenFrom
             address(other), // tokenTo
-            false, // stable
+            true, // stable
             address(this), // to
             block.timestamp // deadline
         );
