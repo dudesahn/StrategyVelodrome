@@ -6,13 +6,13 @@ import math
 def test_cloning(
     gov,
     token,
-    token_wsteth,
+    token_aleth,
     vault,
-    vault_wsteth,
+    vault_aleth,
     vault_kwenta,
     strategist,
     whale,
-    whale_wsteth,
+    whale_aleth,
     strategy,
     keeper,
     rewards,
@@ -20,10 +20,10 @@ def test_cloning(
     contract_name,
     amount,
     pool,
-    pool_wsteth,
+    pool_aleth,
     pool_kwenta,
     gauge,
-    gauge_wsteth,
+    gauge_aleth,
     gauge_kwenta,
     strategy_name,
     sleep_time,
@@ -34,9 +34,11 @@ def test_cloning(
     rewards_token,
     is_clonable,
     other,
-    other_wsteth,
+    other_aleth,
     other_kwenta,
-    healthCheck
+    healthCheck,
+    velo,
+    weth
 ):
 
     # skip this test if we don't clone
@@ -46,14 +48,14 @@ def test_cloning(
     # tenderly doesn't work for "with brownie.reverts"
     if tests_using_tenderly:
         ## clone our strategy
-        tx = strategy.cloneVeloWethVolatile(
-            vault_wsteth,
+        tx = strategy.cloneVeloWethStable(
+            vault_aleth,
             strategist,
             rewards,
             keeper,
-            gauge_wsteth,
-            pool_wsteth,
-            other_wsteth,
+            gauge_aleth,
+            pool_aleth,
+            other_aleth,
             healthCheck,
             strategy_name,
             {"from": gov},
@@ -76,14 +78,14 @@ def test_cloning(
             )
 
         ## clone our strategy
-        tx = strategy.cloneVeloWethVolatile(
-            vault_wsteth,
+        tx = strategy.cloneVeloWethStable(
+            vault_aleth,
             strategist,
             rewards,
             keeper,
-            gauge_wsteth,
-            pool_wsteth,
-            other_wsteth,
+            gauge_aleth,
+            pool_aleth,
+            other_aleth,
             healthCheck,
             strategy_name,
             {"from": gov},
@@ -93,13 +95,13 @@ def test_cloning(
         # Shouldn't be able to call initialize again
         with brownie.reverts():
             newStrategy.initialize(
-                vault_wsteth,
+                vault_aleth,
                 strategist,
                 rewards,
                 keeper,
-                gauge_wsteth,
-                pool_wsteth,
-                other_wsteth,
+                gauge_aleth,
+                pool_aleth,
+                other_aleth,
                 healthCheck,
                 strategy_name,
                 {"from": gov},
@@ -107,7 +109,7 @@ def test_cloning(
 
         ## shouldn't be able to clone a clone
         with brownie.reverts():
-            newStrategy.cloneVeloWethVolatile(
+            newStrategy.cloneVeloWethStable(
                 vault_kwenta,
                 strategist,
                 rewards,
@@ -128,7 +130,7 @@ def test_cloning(
     # chain.sleep(1)
 
     # attach our new strategy
-    vault_wsteth.addStrategy(newStrategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
+    vault_aleth.addStrategy(newStrategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
 
     # if vault_address == ZERO_ADDRESS:
     #     assert vault.withdrawalQueue(1) == newStrategy
@@ -143,22 +145,22 @@ def test_cloning(
     # assert vault.strategies(strategy)["debtRatio"] == 0
 
     ## deposit to the vault after approving; this is basically just our simple_harvest test
-    before_pps = vault_wsteth.pricePerShare()
-    startingWhale = token_wsteth.balanceOf(whale_wsteth)
-    token_wsteth.approve(vault_wsteth, 2 ** 256 - 1, {"from": whale_wsteth})
-    vault_wsteth.deposit(amount, {"from": whale_wsteth})
+    before_pps = vault_aleth.pricePerShare()
+    startingWhale = token_aleth.balanceOf(whale_aleth)
+    token_aleth.approve(vault_aleth, 2 ** 256 - 1, {"from": whale_aleth})
+    vault_aleth.deposit(amount, {"from": whale_aleth})
 
     print('newStrategy.want(): ', newStrategy.want())
-    print('vault_wsteth.token(): ', vault_wsteth.token())
-    assert newStrategy.want() == pool_wsteth
-    assert vault_wsteth.token() == pool_wsteth
+    print('vault_aleth.token(): ', vault_aleth.token())
+    assert newStrategy.want() == pool_aleth
+    assert vault_aleth.token() == pool_aleth
 
     # harvest, store asset amount
     newStrategy.harvest({"from": gov})
     chain.sleep(1)
-    old_assets = vault_wsteth.totalAssets()
+    old_assets = vault_aleth.totalAssets()
     assert old_assets > 0
-    assert token_wsteth.balanceOf(newStrategy) == 0
+    assert token_aleth.balanceOf(newStrategy) == 0
     assert newStrategy.estimatedTotalAssets() > 0
     print("\nStarting Assets: ", old_assets / 1e18)
 
@@ -170,9 +172,16 @@ def test_cloning(
     chain.sleep(sleep_time)
     chain.mine(1)
 
+    # PRINTOUT
+    print("\nearned: ", gauge.earned(velo, newStrategy) / 1e18)
+    print("weth bal: ", weth.balanceOf(newStrategy) / 1e18)
+    print("other bal: ", other.balanceOf(newStrategy) / 1e18)
+    print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
+    print("vault token bal: ", token.balanceOf(vault) / 1e18)
+
     # harvest after a day, store new asset amount
-    newStrategy.harvest({"from": gov})
-    new_assets = vault_wsteth.totalAssets()
+    txh = newStrategy.harvest({"from": gov})
+    new_assets = vault_aleth.totalAssets()
 
     # we can't use strategyEstimated Assets because the profits are sent to the vault
     assert new_assets >= old_assets
@@ -191,13 +200,20 @@ def test_cloning(
     chain.sleep(86400)
     chain.mine(1)
 
+    # PRINTOUT
+    print("\nearned: ", gauge.earned(velo, newStrategy) / 1e18)
+    print("weth bal: ", weth.balanceOf(newStrategy) / 1e18)
+    print("other bal: ", other.balanceOf(newStrategy) / 1e18)
+    print("vault gauge bal: ", gauge.balanceOf(vault) / 1e18)
+    print("vault token bal: ", token.balanceOf(vault) / 1e18)
+
     # withdraw and confirm we made money, or at least that we have about the same
-    vault_wsteth.withdraw({"from": whale_wsteth})
+    vault_aleth.withdraw({"from": whale_aleth})
     if is_slippery and no_profit:
         assert (
-            math.isclose(token_wsteth.balanceOf(whale_wsteth), startingWhale, abs_tol=10)
-            or token_wsteth.balanceOf(whale_wsteth) >= startingWhale
+            math.isclose(token_aleth.balanceOf(whale_aleth), startingWhale, abs_tol=10)
+            or token_aleth.balanceOf(whale_aleth) >= startingWhale
         )
     else:
-        assert token_wsteth.balanceOf(whale_wsteth) >= startingWhale
-    assert vault_wsteth.pricePerShare() >= before_pps
+        assert token_aleth.balanceOf(whale_aleth) >= startingWhale
+    assert vault_aleth.pricePerShare() >= before_pps
