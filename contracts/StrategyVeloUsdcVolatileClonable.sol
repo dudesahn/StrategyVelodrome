@@ -321,16 +321,16 @@ contract StrategyVeloUsdcVolatileClonable is StrategyVeloBase {
             IGauge(gauge).getReward(address(this), rewardsTokens);
             _veloBalance = velo.balanceOf(address(this));
         }
-        // if we have any VELO, then sell it for USDC
-        if (_veloBalance > 0) {
+        // if we have > 10 VELO, then sell it for USDC
+        if (_veloBalance > 10e18) {
             _sell(_veloBalance);
-        }        
+        }    
 
         // check for balances of tokens to deposit
         uint256 _usdcBalance = usdc.balanceOf(address(this));
 
-        // deposit our USDC balance to Velodrome, if we have any
-        if (_usdcBalance > 0) {
+        // deposit our USDC balance to Velodrome, if we have > 10 USD
+        if (_usdcBalance > 10e6) {
             uint256 _otherBalance = IERC20(other).balanceOf(address(this));
             uint256 _usdcB = usdc.balanceOf(pool);
             uint256 _otherB = IERC20(other).balanceOf(pool);
