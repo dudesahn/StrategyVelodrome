@@ -328,16 +328,16 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
             IGauge(gauge).getReward(address(this), rewardsTokens);
             _veloBalance = velo.balanceOf(address(this));
         }
-        // if we have any VELO, then sell it for USDC
-        if (_veloBalance > 0) {
+        // if we have > 10 VELO, then sell it for USDC
+        if (_veloBalance > 10e18) {
             _sell(_veloBalance);
         }        
 
         // check for balances of tokens to deposit
         uint256 _wethBalance = weth.balanceOf(address(this));
 
-        // deposit our WETH balance to Velodrome, if we have any
-        if (_wethBalance > 0) {
+        // deposit our WETH balance to Velodrome, if we have > 0.01
+        if (_wethBalance > 0.01e18) {
             uint256 _otherBalance = IERC20(other).balanceOf(address(this));
             uint256 _wethB = weth.balanceOf(pool);
             uint256 _otherB = IERC20(other).balanceOf(pool);
