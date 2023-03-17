@@ -268,7 +268,7 @@ contract StrategyVeloVeloVolatileClonable is StrategyVeloBase {
         // You can set these parameters on deployment to whatever you want
         maxReportDelay = 28 days; // 28 days in seconds
         minReportDelay = 7 days; // 7 days in seconds
-        creditThreshold = 0.02 * 1e18;
+        creditThreshold = 10000 * 1e18;
         maxSlippageVeloOther = 50; // 0.5% default
 
         // set our velodrome gauge contract

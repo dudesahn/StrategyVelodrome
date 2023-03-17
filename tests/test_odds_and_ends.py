@@ -444,6 +444,7 @@ def test_odds_and_ends_empty_strat(
     ## move our funds back into the strategy
     vault.updateStrategyDebtRatio(strategy, startingDebtRatio, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # sleep to generate some profit
