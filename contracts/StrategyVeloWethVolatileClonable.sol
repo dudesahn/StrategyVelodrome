@@ -290,9 +290,6 @@ contract StrategyVeloWethVolatileClonable is StrategyVeloBase {
         // these are our standard approvals. want = Velodrome pool token
         want.approve(gauge, type(uint256).max);
 
-        // these are our standard approvals. want = Velodrome pool token
-        want.approve(gauge, type(uint256).max);
-
         // these are our approvals and path specific to this contract
         weth.approve(velodromeRouter, type(uint256).max);
         usdc.approve(velodromeRouter, type(uint256).max);
