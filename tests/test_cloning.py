@@ -52,7 +52,7 @@ def test_cloning(
 
     # tenderly doesn't work for "with brownie.reverts"
     if tests_using_tenderly:
-        tx = strategy.cloneVeloWethVolatile(
+        tx = strategy.cloneVeloVeloVolatile(
             vault,
             strategist,
             rewards,
@@ -81,7 +81,7 @@ def test_cloning(
                 {"from": gov},
             )
 
-        tx = strategy.cloneVeloWethVolatile(
+        tx = strategy.cloneVeloVeloVolatile(
             vault,
             strategist,
             rewards,
@@ -113,7 +113,7 @@ def test_cloning(
 
             ## shouldn't be able to clone a clone
         with brownie.reverts():
-            new_strategy.cloneVeloWethVolatile(
+            new_strategy.cloneVeloVeloVolatile(
                 vault,
                 strategist,
                 rewards,

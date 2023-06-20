@@ -42,7 +42,7 @@ def tenderly_fork(web3, chain):
 
 @pytest.fixture(scope="session")
 def token():
-    token_address = "0x985612ff2C9409174FedcFf23d4F4761AF124F88"  # this should be the address of the ERC-20 used by the strategy/vault (weth/rETH LP)
+    token_address = "0xe8537b6FF1039CB9eD0B71713f697DDbaDBb717d"  # this should be the address of the ERC-20 used by the strategy/vault (velo/usdc LP)
     yield interface.IERC20(token_address)
 
 
@@ -51,8 +51,8 @@ def whale(amount, token):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     whale = accounts.at(
-        "0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44", force=True
-    )  # 0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44, weth-reth gauge
+        "0x6b8EDC43de878Fd5Cd5113C42747d32500Db3873", force=True
+    )  # 0x6b8EDC43de878Fd5Cd5113C42747d32500Db3873, velo-usdc gauge
     if token.balanceOf(whale) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
@@ -62,7 +62,7 @@ def whale(amount, token):
 
 @pytest.fixture(scope="session")
 def amount(token):
-    amount = 100 * 10 ** token.decimals()
+    amount = 0.1 * 10 ** token.decimals()
     yield amount
 
 
@@ -70,8 +70,8 @@ def amount(token):
 def profit_whale(profit_amount, token):
     # ideally not the same whale as the main whale, or else they will lose money
     profit_whale = accounts.at(
-        "0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44", force=True
-    )  # 0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44, weth-reth gauge
+        "0x6b8EDC43de878Fd5Cd5113C42747d32500Db3873", force=True
+    )  # 0x6b8EDC43de878Fd5Cd5113C42747d32500Db3873, velo-usdc gauge
     if token.balanceOf(profit_whale) < 5 * profit_amount:
         raise ValueError(
             "Our profit whale needs more funds. Find another whale or reduce your profit_amount variable."
@@ -81,7 +81,7 @@ def profit_whale(profit_amount, token):
 
 @pytest.fixture(scope="session")
 def profit_amount(token):
-    profit_amount = 0.5 * 10 ** token.decimals()
+    profit_amount = 0.0000001 * 10 ** token.decimals()
     yield profit_amount
 
 
@@ -108,8 +108,8 @@ def strategy_name():
 
 # this is the name of our strategy in the .sol file
 @pytest.fixture(scope="session")
-def contract_name(StrategyVeloWethVolatileClonable):
-    contract_name = StrategyVeloWethVolatileClonable
+def contract_name(StrategyVeloVeloVolatileClonable):
+    contract_name = StrategyVeloVeloVolatileClonable
     yield contract_name
 
 
@@ -151,7 +151,7 @@ def sleep_time():
     hour = 3600
 
     # change this one right here
-    hours_to_sleep = 30
+    hours_to_sleep = 12
 
     sleep_time = hour * hours_to_sleep
     yield sleep_time
@@ -418,26 +418,18 @@ def is_gmx():
 
 @pytest.fixture(scope="session")
 def other_token():
-    yield Contract("0x9Bcef72be871e61ED4fBbc7630889beE758eb81D")  # reth
+    yield Contract("0x7F5c764cBc14f9669B88837ca1490cCa17c31607")  # usdc
 
 
 # gauge for the velodrome pool token
 @pytest.fixture(scope="session")
 def gauge():
-    yield Contract("0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44")  # weth/reth gauge
-
-
-# gauge for the velodrome pool token
-@pytest.fixture(scope="session")
-def gauge_addr(accounts):
-    yield accounts.at(
-        "0x89C1a33011Fab92e497963a6FA069aEE5c1f5D44", force=True
-    )  # weth/reth gauge
+    yield Contract("0x6b8EDC43de878Fd5Cd5113C42747d32500Db3873")  # usdc/velo gauge
 
 
 @pytest.fixture(scope="session")
 def pool():
-    yield Contract("0x985612ff2C9409174FedcFf23d4F4761AF124F88")  # same as token
+    yield Contract("0xe8537b6FF1039CB9eD0B71713f697DDbaDBb717d")  # same as token
 
 
 @pytest.fixture(scope="session")

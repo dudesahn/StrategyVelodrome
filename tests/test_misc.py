@@ -212,15 +212,11 @@ def test_setters(
     )
 
     # set our slippages
-    strategy.setMaxSlippages(50, 50, 50, {"from": gov})
+    strategy.setMaxSlippage(50, {"from": gov})
     with brownie.reverts():
-        strategy.setMaxSlippages(50, 50, 50, {"from": whale})
+        strategy.setMaxSlippage(50, {"from": whale})
     with brownie.reverts():
-        strategy.setMaxSlippages(50, 10001, 50, {"from": gov})
-    with brownie.reverts():
-        strategy.setMaxSlippages(50, 50, 10001, {"from": gov})
-    with brownie.reverts():
-        strategy.setMaxSlippages(10001, 50, 50, {"from": gov})
+        strategy.setMaxSlippage(10001, {"from": gov})
 
     strategy.updateRewardsTokens([strategy.rewardsTokens(0)], {"from": gov})
     with brownie.reverts():
