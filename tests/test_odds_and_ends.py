@@ -365,6 +365,9 @@ def test_empty_strat(
     token.transfer(gov, to_send, {"from": strategy})
     print("Balance of Strategy", to_send)
 
+    # set this to true if there are rewards we will still claim on our next harvest
+    unclaimed_rewards = True
+
     # confirm we emptied the strategy
     assert strategy.estimatedTotalAssets() == 0
 
@@ -428,9 +431,13 @@ def test_empty_strat(
     strategy_params = check_status(strategy, vault)
 
     # DR goes to zero, loss is > 0, gain and debt should be near zero (zero for new vaults), share price also nearr zero (bye-bye assets 💀)
-    assert strategy_params["debtRatio"] == 0
+    if unclaimed_rewards:
+        assert strategy_params["debtRatio"] > 0
+        assert strategy_params["debtRatio"] < 100
+    else:
+        assert strategy_params["debtRatio"] == 0
     assert strategy_params["totalLoss"] > 0
-    if not is_gmx:
+    if not is_gmx and not unclaimed_rewards:
         assert strategy_params["totalGain"] == 0
         assert vault.pricePerShare() == 0
 
@@ -439,13 +446,19 @@ def test_empty_strat(
         assert strategy_params["totalDebt"] == dust_donation == vault.totalAssets()
         assert strategy.estimatedTotalAssets() <= dust_donation
     else:
-        assert strategy_params["totalDebt"] == 0 == vault.totalAssets()
+        if unclaimed_rewards:
+            assert strategy_params["totalDebt"] > 0
+        else:
+            assert strategy_params["totalDebt"] == 0 == vault.totalAssets()
         total_idle = vault.totalIdle()
         assert total_idle == 0
         if use_yswaps:
             assert strategy.estimatedTotalAssets() == profit_amount
         elif is_gmx:
             assert strategy.estimatedTotalAssets() == extra
+        elif unclaimed_rewards:
+            # all we have left is the "profit" from selling the rewards. not sent back to vault because not actually profit, just not 100% loss.
+            assert strategy.estimatedTotalAssets() == vault.totalAssets() > 0
         else:
             assert strategy.estimatedTotalAssets() == 0
 
@@ -466,6 +479,7 @@ def test_empty_strat(
         profit_amount,
         target,
     )
+
     assert profit > 0
     share_price = vault.pricePerShare()
     assert share_price > 0
