@@ -1,83 +1,290 @@
+import pytest
+from utils import harvest_strategy, check_status
+from brownie import accounts, interface, chain
 import brownie
-from brownie import Contract
-from brownie import config
-import math
 
 # test migrating a strategy
 def test_migration(
-    contract_name,
     gov,
     token,
     vault,
-    strategist,
     whale,
     strategy,
-    chain,
-    healthCheck,
     amount,
-    pool,
-    strategy_name,
     sleep_time,
+    contract_name,
+    profit_whale,
+    profit_amount,
+    target,
+    trade_factory,
+    use_yswaps,
+    is_slippery,
+    no_profit,
+    is_gmx,
     gauge,
-    other
+    pool,
+    other_token,
+    health_check,
+    strategy_name,
+    to_sweep,
 ):
 
     ## deposit to the vault after approving
-    startingWhale = token.balanceOf(whale)
-    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    token.approve(vault, 2**256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
-    chain.sleep(1)
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-
-    # make sure to include all constructor parameters needed here
-    new_strategy = strategist.deploy(
-        contract_name,
-        vault,
-        gauge,
-        pool,
-        other,
-        healthCheck,
-        strategy_name,
+    (profit, loss, extra) = harvest_strategy(
+        use_yswaps,
+        strategy,
+        token,
+        gov,
+        profit_whale,
+        profit_amount,
+        target,
     )
-    # harvestTrigger check for isActive() doesn't work if we have multiple curve strategies for the same LP
 
+    # record our current strategy's assets
     total_old = strategy.estimatedTotalAssets()
 
     # sleep to collect earnings
     chain.sleep(sleep_time)
 
-    # migrate our old strategy
+    ######### THIS WILL NEED TO BE UPDATED BASED ON STRATEGY CONSTRUCTOR #########
+    new_strategy = gov.deploy(
+        contract_name, vault, gauge, pool, other_token, health_check, strategy_name
+    )
+
+    # check that we can't use the incorrect gauge for our pool
+    other_gauge = "0x150dc0e12d473347BECd0f7352e9dAE6CD30d8aB"  # wsteth
+    with brownie.reverts():
+        gov.deploy(
+            contract_name,
+            vault,
+            other_gauge,
+            pool,
+            other_token,
+            health_check,
+            strategy_name,
+        )
+
+    # can we harvest an unactivated strategy? should be no
+    tx = new_strategy.harvestTrigger(0, {"from": gov})
+    print("\nShould we harvest? Should be False.", tx)
+    assert tx == False
+
+    # if gmx, want to harvest again so we can get some funds in vesting
+    if is_gmx:
+        (profit, loss, extra) = harvest_strategy(
+            is_gmx,
+            strategy,
+            token,
+            gov,
+            profit_whale,
+            profit_amount,
+            target,
+        )
+
+    ######### ADD LOGIC TO TEST CLAIMING OF ASSETS FOR TRANSFER TO NEW STRATEGY AS NEEDED #########
+    # since migrating doesn't enter prepareReturn, we may have to manually claim rewards
+    gauge.getReward(strategy.address, [strategy.rewardsTokens(0)], {"from": strategy})
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-    new_strategy.setHealthCheck(healthCheck, {"from": gov})
-    new_strategy.setDoHealthCheck(True, {"from": gov})
+
+    # gmx has a two-step migration, have to accept it on the new strategy too
+    if is_gmx:
+        new_strategy.acceptTransfer(strategy, {"from": gov})
+
+    ####### ADD LOGIC TO MAKE SURE ASSET TRANSFER WENT AS EXPECTED #######
+    assert to_sweep.balanceOf(strategy) == 0
+    assert to_sweep.balanceOf(new_strategy) > 0
+    print("\nBalance of token:", to_sweep.balanceOf(new_strategy) / 1e18, "\n")
 
     # assert that our old strategy is empty
     updated_total_old = strategy.estimatedTotalAssets()
     assert updated_total_old == 0
 
-    # harvest to get funds back in strategy
-    chain.sleep(1)
-    new_strategy.harvest({"from": gov})
-    new_strat_balance = new_strategy.estimatedTotalAssets()
-
-    # confirm we made money, or at least that we have about the same
-    assert new_strat_balance >= total_old or math.isclose(
-        new_strat_balance, total_old, abs_tol=5
+    # harvest to get funds back in new strategy, and take profit from our transferred amount
+    (profit, loss, extra) = harvest_strategy(
+        is_gmx,
+        new_strategy,
+        token,
+        gov,
+        profit_whale,
+        profit_amount,
+        target,
     )
+    assert profit > 0
+    new_strat_balance = new_strategy.estimatedTotalAssets()
+    assert new_strat_balance > 0
 
-    startingVault = vault.totalAssets()
-    print("\nVault starting assets with new strategy: ", startingVault)
+    # harvest again to take our profit if needed
+    if use_yswaps or is_gmx:
+        strategy_params = check_status(new_strategy, vault)
+        old_gain = strategy_params["totalGain"]
+        (profit, loss, extra) = harvest_strategy(
+            is_gmx,
+            new_strategy,
+            token,
+            gov,
+            profit_whale,
+            profit_amount,
+            target,
+        )
+
+        # check our current status
+        print("\nAfter yswaps extra harvest")
+        strategy_params = check_status(new_strategy, vault)
+
+        # make sure we recorded our gain properly
+        if not no_profit:
+            assert strategy_params["totalGain"] > old_gain
+
+    # confirm that we have the same amount of assets in our new strategy as old or have profited
+    # realistically we won't have new assets in the strategy yet, as our profit from the first profitable harvest is back in the vault
+    if no_profit:
+        assert pytest.approx(new_strat_balance, rel=RELATIVE_APPROX) == total_old
+    else:
+        assert new_strat_balance >= total_old
+
+    # record our new assets
+    vault_new_assets = vault.totalAssets()
 
     # simulate earnings
     chain.sleep(sleep_time)
-    chain.mine(1)
 
     # Test out our migrated strategy, confirm we're making a profit
-    new_strategy.harvest({"from": gov})
-    vaultAssets_2 = vault.totalAssets()
-    # confirm we made money, or at least that we have about the same
-    assert vaultAssets_2 >= startingVault or math.isclose(
-        vaultAssets_2, startingVault, abs_tol=5
+    (profit, loss, extra) = harvest_strategy(
+        is_gmx,
+        new_strategy,
+        token,
+        gov,
+        profit_whale,
+        profit_amount,
+        target,
     )
-    print("\nAssets after 1 day harvest: ", vaultAssets_2)
+
+    vault_newer_assets = vault.totalAssets()
+    # confirm we made money, or at least that we have about the same
+    if no_profit:
+        assert (
+            pytest.approx(vault_newer_assets, rel=RELATIVE_APPROX) == vault_new_assets
+        )
+    else:
+        assert vault_newer_assets > vault_new_assets
+
+
+# make sure we can still migrate when we don't have funds
+def test_empty_migration(
+    gov,
+    token,
+    vault,
+    whale,
+    strategy,
+    amount,
+    sleep_time,
+    contract_name,
+    profit_whale,
+    profit_amount,
+    target,
+    trade_factory,
+    use_yswaps,
+    is_slippery,
+    RELATIVE_APPROX,
+    is_gmx,
+    gauge,
+    pool,
+    other_token,
+    health_check,
+    strategy_name,
+):
+
+    ## deposit to the vault after approving
+    token.approve(vault, 2**256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    (profit, loss, extra) = harvest_strategy(
+        is_gmx,
+        strategy,
+        token,
+        gov,
+        profit_whale,
+        profit_amount,
+        target,
+    )
+
+    # record our current strategy's assets
+    total_old = strategy.estimatedTotalAssets()
+
+    # sleep to collect earnings
+    chain.sleep(sleep_time)
+
+    ######### THIS WILL NEED TO BE UPDATED BASED ON STRATEGY CONSTRUCTOR #########
+    new_strategy = gov.deploy(
+        contract_name, vault, gauge, pool, other_token, health_check, strategy_name
+    )
+
+    # set our debtRatio to zero so our harvest sends all funds back to vault
+    vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
+    (profit, loss, extra) = harvest_strategy(
+        is_gmx,
+        strategy,
+        token,
+        gov,
+        profit_whale,
+        profit_amount,
+        target,
+    )
+
+    # yswaps needs another harvest to get the final bit of profit to the vault
+    if use_yswaps or is_gmx:
+        (profit, loss, extra) = harvest_strategy(
+            is_gmx,
+            strategy,
+            token,
+            gov,
+            profit_whale,
+            profit_amount,
+            target,
+        )
+
+    # shouldn't have any assets, unless we have slippage, then this might leave dust
+    # for complete emptying in this situtation, use emergencyExit
+    if is_slippery:
+        assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == 0
+        strategy.setEmergencyExit({"from": gov})
+
+        # turn off health check since taking profit on no debt
+        strategy.setDoHealthCheck(False, {"from": gov})
+        (profit, loss, extra) = harvest_strategy(
+            is_gmx,
+            strategy,
+            token,
+            gov,
+            profit_whale,
+            profit_amount,
+            target,
+        )
+
+    if is_gmx:
+        # normally we would send this away, but sMLP doesn't let us transfer zero
+        assert strategy.estimatedTotalAssets() == extra
+    else:
+        assert strategy.estimatedTotalAssets() == 0
+
+    # make sure we transferred strat params over
+    total_debt = vault.strategies(strategy)["totalDebt"]
+    debt_ratio = vault.strategies(strategy)["debtRatio"]
+
+    # migrate our old strategy
+    vault.migrateStrategy(strategy, new_strategy, {"from": gov})
+
+    # gmx has a two-step migration, have to accept it on the new strategy too
+    if is_gmx:
+        new_strategy.acceptTransfer(strategy, {"from": gov})
+
+    # new strategy should also be empty
+    if is_gmx:
+        assert new_strategy.estimatedTotalAssets() == extra
+    else:
+        assert new_strategy.estimatedTotalAssets() == 0
+
+    # make sure we took our gains and losses with us
+    assert total_debt == vault.strategies(new_strategy)["totalDebt"]
+    assert debt_ratio == vault.strategies(new_strategy)["debtRatio"] == 0
