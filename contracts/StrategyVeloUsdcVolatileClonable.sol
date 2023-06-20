@@ -4,8 +4,6 @@ pragma solidity ^0.8.15;
 // These are the core Yearn libraries
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
-
-import "./interfaces/yearn.sol";
 import "@yearnvaults/contracts/BaseStrategy.sol";
 
 interface IVelodromeRouter {
@@ -272,27 +270,24 @@ contract StrategyVeloUsdcVolatileClonable is StrategyVeloBase {
         maxSlippageVeloUsdc = 50; // 0.5% default
         maxSlippageUsdcOther = 50; // 0.5% default
 
-        // set our velodrome gauge contract
-        gauge = address(_gauge);
-
-        // this is the pool specific to this vault, but we only use it as an address
-        pool = address(_veloPool);
+        // set state vars 1:1
+        gauge = _gauge;
+        pool = _veloPool;
+        healthCheck = _healthCheck;
 
         // set the other (non-USDC) token in our pool
-        other = address(_otherToken);
-
-        healthCheck = address(_healthCheck);
+        other = _otherToken;
 
         // set our strategy's name
         stratName = _name;
 
         // these are our standard approvals. want = Velodrome pool token
-        want.approve(address(gauge), type(uint256).max);
+        want.approve(gauge, type(uint256).max);
 
         // these are our approvals and path specific to this contract
-        usdc.approve(address(velodromeRouter), type(uint256).max);
-        velo.approve(address(velodromeRouter), type(uint256).max);
-        IERC20(other).approve(address(velodromeRouter), type(uint256).max);
+        usdc.approve(velodromeRouter, type(uint256).max);
+        velo.approve(velodromeRouter, type(uint256).max);
+        IERC20(other).approve(velodromeRouter, type(uint256).max);
 
         rewardsTokens.push(address(velo));
     }
@@ -308,14 +303,10 @@ contract StrategyVeloUsdcVolatileClonable is StrategyVeloBase {
             uint256 _debtPayment
         )
     {
-        uint256 _stakedBal = stakedBalance();
+        // claim our velo
+        IGauge(gauge).getReward(address(this), rewardsTokens);
         uint256 _veloBalance = velo.balanceOf(address(this));
-        // if we have anything in the gauge, then harvest VELO from the gauge
-        if (_stakedBal > 0) {
-            // claim our velo
-            IGauge(gauge).getReward(address(this), rewardsTokens);
-            _veloBalance = velo.balanceOf(address(this));
-        }
+
         // if we have > 1 VELO, then sell it for USDC
         if (_veloBalance > 1e18) {
             _sell(_veloBalance);
@@ -364,6 +355,7 @@ contract StrategyVeloUsdcVolatileClonable is StrategyVeloBase {
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
         if (_debtOutstanding > 0) {
+            uint256 _stakedBal = stakedBalance();
             // don't bother withdrawing if we don't have staked funds
             if (_stakedBal > 0) {
                 IGauge(gauge).withdraw(Math.min(_stakedBal, _debtOutstanding));
