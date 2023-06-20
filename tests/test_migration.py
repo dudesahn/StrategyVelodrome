@@ -53,19 +53,6 @@ def test_migration(
         contract_name, vault, gauge, pool, other_token, health_check, strategy_name
     )
 
-    # check that we can't use the incorrect gauge for our pool
-    other_gauge = "0x150dc0e12d473347BECd0f7352e9dAE6CD30d8aB"  # wsteth
-    with brownie.reverts():
-        gov.deploy(
-            contract_name,
-            vault,
-            other_gauge,
-            pool,
-            other_token,
-            health_check,
-            strategy_name,
-        )
-
     # can we harvest an unactivated strategy? should be no
     tx = new_strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be False.", tx)

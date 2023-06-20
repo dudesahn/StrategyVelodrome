@@ -222,6 +222,10 @@ def test_setters(
     with brownie.reverts():
         strategy.setMaxSlippages(10001, 50, 50, {"from": gov})
 
+    strategy.updateRewardsTokens([strategy.rewardsTokens(0)], {"from": gov})
+    with brownie.reverts():
+        strategy.updateRewardsTokens([strategy.rewardsTokens(0)], {"from": whale})
+
 
 # test sweeping out tokens
 def test_sweep(
